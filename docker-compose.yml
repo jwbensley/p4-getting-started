@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  p4:
+    container_name: p4
+    image: p4:latest
+    build:
+      dockerfile: Dockerfile
+    privileged: true # needed to create veth pairs
+    volumes:
+      - ./l2_fwd:/l2_fwd:z
+    entrypoint: tail -f /dev/null
