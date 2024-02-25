@@ -8,5 +8,5 @@ services:
       dockerfile: Dockerfile
     privileged: true # needed to create veth pairs
     volumes:
-      - ./l2_fwd:/l2_fwd:z
+      - ./examples:/examples:z
     entrypoint: tail -f /dev/null

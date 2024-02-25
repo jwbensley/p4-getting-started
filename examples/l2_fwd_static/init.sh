@@ -72,9 +72,9 @@ ip netns exec l2_1 ip a
 ip netns exec l2_1 ip r
 
 
-ROOT_DIR=/l2_fwd
-p4c --target bmv2 --arch v1model --std p4-16 -o "$ROOT_DIR" --p4runtime-files "${ROOT_DIR}/l2_fwd.p4.txt" "${ROOT_DIR}/l2_fwd.p4"
-simple_switch -i 0@l2_r0 -i 1@l2_r1 -L debug --log-console --dump-packet-data 64 "${ROOT_DIR}/l2_fwd.json" &
+SCRIPT_DIR=$(dirname "$0")
+p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
+simple_switch -i 0@l2_r0 -i 1@l2_r1 -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json" &
 # Wait for the switch to start before trying to access the control plane (thrift) via simple_switch_CLI
 sleep 2
 # Program some static MAC entries.
@@ -86,7 +86,3 @@ table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:04 => 1
 table_add MyIngress.mac_addresses MyIngress.l2_forward FF:FF:FF:FF:FF:FF => 1
 EOF
 read
-
-# Debugging commands:
-# 
-#tcpdump -nlASXevvv -s 0 -i l2_r1

@@ -8,14 +8,17 @@
 
 **P4-16**: This is the current version of the language.
 
+**P4-14 Spec**: The current specification for the P4-16 language is <https://staging.p4.org/p4-spec/docs/P4-16-v1.2.4.html>.
+
 **Target**: This is the packet processing “device” which will run the P4 program (it could be a software switch or router, or an FPGA, a switch, or a NIC, or anything really).
 
-**Target Architecture**: This describes the capabilities of the Target and is used by the P4 Compiler. The P4 architecture identifies the P4-programmable blocks (e.g., parser, ingress control flow, egress control flow, deparser, etc.) and their data plane interfaces. The P4 architecture can be thought of as a contract between the program and the target. Each manufacturer must therefore provide both a P4 compiler as well as an accompanying architecture definition for their target
-
+**Target Architecture**: This describes the capabilities of the Target and is used by the P4 Compiler. The P4 architecture identifies the P4-programmable blocks (e.g., parser, ingress control flow, egress control flow, deparser, etc.) and their data plane interfaces. The P4 architecture can be thought of as a contract between the program and the target. Each manufacturer must therefore provide both a P4 compiler as well as an accompanying architecture definition for their target.
 
 **The Portable NIC Architecture (PNA)**: A target architecture that describes the common capabilities of network NIC devices that process and forward packets between one or more network interfaces and a host system.
 
 **The Portable Switch Architecture (PSA)**: A target architecture that describes the common capabilities of network switch devices to process and forward packets.
+
+**PSA Spec** The current version of the PSA specification is <https://staging.p4.org/p4-spec/docs/PSA-v1.2.html>.
 
 **V1model Architecture**: This is a target architecture this is older and more generic that PSA and PNA.
 

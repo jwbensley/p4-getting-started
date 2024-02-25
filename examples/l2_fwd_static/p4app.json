@@ -114,7 +114,7 @@
       "name" : "deparser",
       "id" : 0,
       "source_info" : {
-        "filename" : "/l2_fwd/l2_fwd.p4",
+        "filename" : "/examples/l2_fwd_static/p4app.p4",
         "line" : 106,
         "column" : 8,
         "source_fragment" : "MyDeparser"
@@ -143,7 +143,7 @@
             }
           ],
           "source_info" : {
-            "filename" : "/l2_fwd/l2_fwd.p4",
+            "filename" : "/examples/l2_fwd_static/p4app.p4",
             "line" : 60,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
@@ -174,7 +174,7 @@
             }
           ],
           "source_info" : {
-            "filename" : "/l2_fwd/l2_fwd.p4",
+            "filename" : "/examples/l2_fwd_static/p4app.p4",
             "line" : 64,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = egress_port"
@@ -188,7 +188,7 @@
       "name" : "ingress",
       "id" : 0,
       "source_info" : {
-        "filename" : "/l2_fwd/l2_fwd.p4",
+        "filename" : "/examples/l2_fwd_static/p4app.p4",
         "line" : 55,
         "column" : 8,
         "source_fragment" : "MyIngress"
@@ -199,7 +199,7 @@
           "name" : "MyIngress.mac_addresses",
           "id" : 0,
           "source_info" : {
-            "filename" : "/l2_fwd/l2_fwd.p4",
+            "filename" : "/examples/l2_fwd_static/p4app.p4",
             "line" : 67,
             "column" : 10,
             "source_fragment" : "mac_addresses"
@@ -240,7 +240,7 @@
       "name" : "egress",
       "id" : 1,
       "source_info" : {
-        "filename" : "/l2_fwd/l2_fwd.p4",
+        "filename" : "/examples/l2_fwd_static/p4app.p4",
         "line" : 87,
         "column" : 8,
         "source_fragment" : "MyEgress"
@@ -292,7 +292,7 @@
       ["standard_metadata", "priority"]
     ]
   ],
-  "program" : "/l2_fwd/l2_fwd.p4i",
+  "program" : "/examples/l2_fwd_static/p4app.p4i",
   "__meta__" : {
     "version" : [2, 23],
     "compiler" : "https://github.com/p4lang/p4c"
