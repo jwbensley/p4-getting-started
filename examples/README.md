@@ -36,9 +36,12 @@ docker compose exec p4 /examples/clean_up.sh
 
 ## l2_fwd_learning
 
-https://github.com/antoninbas/p4runtime-go-client/blob/main/cmd/l2_switch/l2_switch.p4
+Is it not possible to implement MAC learning in P4 natively. It can be implemented using CPU punting though:
 
-It is possible to implement MAC learning in P4 ([example](https://github.com/nsg-ethz/p4-learning/blob/master/examples/l2_learning/p4src/l2_learning_copy_to_cpu.p4)) however it is not possible to implement a full ARP implementation. For clients resolving the P4 router IP, P4 can match incoming ARP packets, perform an IP lookup of the IP in the ARP request, match it to a local interface IP, and respond with the MAC of the P4 router interface. However, when a P4 router receives a packet for a different L3 subnet than the subnet used on the interface the packet received from (meaning the packet needs to be L3 routed), and the P4 switch has a local interface in the destination L3 subnet but no MAC entry for the destination IP address, P4 is unable to buffer the packet and wait for an action to complete (send an ARP request and watch for an ARP response). In [this example](https://github.com/hesam4g/p4-arp) the P4 switch is programmed with the MAC and IP entries, and the P4 switch responds to ARP requests (this only works because the example is a single L2 broadcast domain).
+* [example 1](https://github.com/nsg-ethz/p4-learning/blob/master/examples/l2_learning/p4src/l2_learning_copy_to_cpu.p4)
+* [example 2](https://github.com/antoninbas/p4runtime-go-client/blob/main/cmd/l2_switch/l2_switch.p4)
+
+In this example we perform a lookup of the incoming frame...................????????????
 
 ```shell
 # Set up the topology and start the P4 switch running
@@ -47,3 +50,7 @@ docker compose exec p4 /examples/l2_fwd_learning/init.sh
 # In another terminal, ping between the two interfaces in the same IP subnet, with the P4 switch providing L2 forwarding between the interfaces
 docker compose exec p4 ip netns exec l2_0 ping 10.0.0.4
 ```
+
+## l3_fwd_static
+
+It is not possible to implement a full ARP implementation directly in P4. For clients resolving the P4 router IP, P4 can be hard coded to match incoming ARP packets, perform an IP lookup of the IP in the ARP request, match it to a local interface IP, and respond with the MAC of the P4 router interface. However, when a P4 router receives a packet for an IP address on a different L3 subnet than the subnet used on the interface the packet was received from (meaning the packet needs to be L3 routed), and the P4 switch has a local interface in the destination L3 subnet but no MAC entry for the destination IP address, P4 is unable to buffer the packet and wait for an action to complete (send an ARP request and watch for an ARP response). In [this example](https://github.com/hesam4g/p4-arp) the P4 switch is programmed with the MAC and IP entries, and the P4 switch responds to ARP requests (this only works because the example is a single L2 broadcast domain).

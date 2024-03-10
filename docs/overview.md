@@ -1,6 +1,6 @@
 # P4 Definitions and Architecture
 
-**P4**: A language (DSL) for writing packet processing code.
+**P4**: A language (DSL) for writing packet processing code. It has a style similar to C but doesn't support loops.
 
 **P4 Program**: A program written in the P4 language.
 

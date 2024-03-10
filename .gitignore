@@ -1,2 +1,4 @@
 *.p4i
 *.p4.txt
+.venv/
+venv/

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create the following topology with two interfaces, in different name spaces,
-# in the space IP subnet, using the software switch to forward layer 2 frames
+# in the same IP subnet, using the software switch to forward layer 2 frames
 # between them:
 #
 #    Software Switch      |                          Linux Kernel
@@ -55,12 +55,16 @@ ip link set dev l2_r1 address 00:00:00:00:00:03
 ip netns exec l2_1 ip link set dev l2_1 address 00:00:00:00:00:04
 
 ip link set up dev l2_r0
+sysctl -w net.ipv6.conf.l2_r0.disable_ipv6=1
 ip netns exec l2_0 ip link set up dev l2_0
 ip netns exec l2_0 ip addr add 10.0.0.1/24 dev l2_0
+ip netns exec l2_0 sysctl -w net.ipv6.conf.l2_0.disable_ipv6=1
 
 ip link set up dev l2_r1
+sysctl -w net.ipv6.conf.l2_r1.disable_ipv6=1
 ip netns exec l2_1 ip link set up dev l2_1
 ip netns exec l2_1 ip addr add 10.0.0.4/24 dev l2_1
+ip netns exec l2_1 sysctl -w net.ipv6.conf.l2_1.disable_ipv6=1
 
 ip netns exec l2_0 ip a
 ip netns exec l2_0 ip r
