@@ -80,6 +80,8 @@ fi
 
 SCRIPT_DIR=$(dirname "$0")
 p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
+# ^ this is basically the same as:
+# p4c-bm2-ss --target bmv2 --arch v1model --std p4-16 -o "${SCRIPT_DIR}/p4app.p4i" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
 simple_switch -i 0@l2_r0 -i 1@l2_r1 -i 100@lo -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
 # Wait for the switch to start before trying to access the control plane
 sleep 2

@@ -7,7 +7,19 @@ typedef bit<48> MacAddr_t;
 typedef bit<16> McastGrp_t;
 /* ingress or egress port ID */
 typedef bit<9> PortId_t;
-/* Port ID for CPU punted frames */
+/*
+Port ID for CPU punted frames.
+
+The same ID has to be specified when starting the software switch,
+to bind this swith port to an interface on Linux. The switch will punt frames
+to this interface ID. The control-plane listens on the corresponding Linux
+interface for the punted frames:
+
+simple_switch -i 100@lo
+control_plane.py -i 100
+
+The control plane will configure a mirror port
+*/
 const PortId_t CPU_PORT_ID = 100;
 
 /*
@@ -77,7 +89,6 @@ parser IngressParser(
     inout metadata meta,
     inout standard_metadata_t standard_metadata)
 {
-
     state start {
         /*
         Extract an Ethernet header from a packet and store it in hdr,
@@ -86,7 +97,6 @@ parser IngressParser(
         If we didn't match an Ethernet header, the packet is dropped.
         */
         packet.extract(hdr.ethernet);
-
         /*
         log_msg() is defined by the simple switch architecture v1model.p4.
         Therefore, this is a platform specific logging function.
@@ -94,8 +104,7 @@ parser IngressParser(
 
         extern void log_msg(string msg);
         */
-        log_msg("####### Parsed received frame on ingress port ID {}", {standard_metadata.ingress_port});
-
+        log_msg("Parser is accepting frame received on ingress port ID {}", {standard_metadata.ingress_port});
         transition accept;
     }
 }
@@ -128,7 +137,6 @@ the directionless parameters behave like in parameters.
 control IngressProcess(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-
     /*
     An action to drop the frame.
     Define an explicit drop function (action) instead of calling NoAction() in
@@ -140,10 +148,40 @@ control IngressProcess(inout headers hdr,
     }
 
     /*
+    Forward a frame to an egress Port ID.
+
+    Action parameters that have no direction indicate "action data."
+    All such parameters must appear at the end of the parameter list.
+    When used in a match-action table, these parameters will be provided by the
+    table entries e.g., as specified by the control plane, the `default_action`
+    table property, or the `entries` table property.
+    */
+    action l2_forward(PortId_t egress_port) {
+        standard_metadata.egress_port = egress_port;
+    }
+
+    action broadcast() {
+        /*
+        Broadcast a frame.
+
+        There is no native broadcast function in the simple switch, instead,
+        any non-zero multicast group replicates the packet to all egress port IDs
+        in the multicast group. These have to be configured by the control plane.
+        The v1model.p4 standard_metadata field mcast_grp specifies 1 to 65,535
+        multicast group id values.
+
+        Set multicast group to the ingress port ID.
+        The control will have created this group already, as a group of ports
+        which contains all ports in the switch excet the ingress port.
+        */
+        standard_metadata.mcast_grp = (bit<16>)standard_metadata.ingress_port;
+    }
+
+    /*
     An action to CPU punt the frame (so that the CPU can program the MAC into
     the forwarding table).
     */
-    action learn_mac_via_digest_and_forward(PortId_t egress_port) {
+    action learn_mac_via_digest() {
         /*
         A digest is one mechanism to send a message from the data plane to the control plane.
         This is defined by the target architecture.
@@ -154,20 +192,13 @@ control IngressProcess(inout headers hdr,
         in it such as packet headers.
         */
         digest<digest_t>(0, {hdr.ethernet.srcAddr, standard_metadata.ingress_port});
-        // Set egress port ID to value returned by table lookup
-        standard_metadata.egress_port = egress_port;
-    }
-
-    action learn_mac_via_digest_and_broadcast(McastGrp_t mgrp) {
-        digest<digest_t>(0, {hdr.ethernet.srcAddr, standard_metadata.ingress_port});
-        standard_metadata.mcast_grp = mgrp;
     }
 
     /*
     An action to CPU punt the frame (so that the CPU can program the MAC into
     the forwarding table).
     */
-    action learn_mac_via_clone_and_forward(PortId_t egress_port) {
+    action learn_mac_via_clone() {
         /*
         clone_preserving_field_list() and clone() are defined in v1model.p4
         They both create a copy of the packet which is sent to a CPU
@@ -176,45 +207,7 @@ control IngressProcess(inout headers hdr,
         */
         meta.ingress_port = standard_metadata.ingress_port;
         clone_preserving_field_list(CloneType.I2E, (bit<32>)CPU_PORT_ID, 0);
-        // Set egress port ID to value returned by table lookup
-        standard_metadata.egress_port = egress_port;
     }
-
-    action learn_mac_via_clone_and_broadcast(McastGrp_t mgrp) {
-        meta.ingress_port = standard_metadata.ingress_port;
-        clone_preserving_field_list(CloneType.I2E, (bit<32>)CPU_PORT_ID, 0);
-        standard_metadata.mcast_grp = mgrp;
-    }
-
-    /*
-    Forward a frame to an egress Port ID.
-
-    Action parameters that have no direction indicate "action data."
-    All such parameters must appear at the end of the parameter list.
-    When used in a match-action table, these parameters will be provided by the
-    table entries e.g., as specified by the control plane, the `default_action`
-    table property, or the `entries` table property.
-
-    This is not used, it just an example of a standalone L2 forward function.
-    action l2_forward(PortId_t egress_port) {
-        standard_metadata.egress_port = egress_port;
-    }
-    */
-
-    /*
-    Broadcast a frame.
-
-    There is no native broadcast function in the simple switch, instead,
-    any non-zero multicast group replicates the packet to all egress port IDs
-    in the multicast group. These have to be configured by the control plane.
-    The v1model.p4 standard_metadata field mcast_grp specifies 1 to 65,535
-    multicast group id values.
-
-    This is not used, it is just an example of a standalone broadcast function.
-    action l2_broadcast(McastGrp_t mgrp) {
-        standard_metadata.mcast_grp = mgrp;
-    }
-    */
 
     /*
     Define a table with for storing invalid source MACs.
@@ -231,7 +224,7 @@ control IngressProcess(inout headers hdr,
         // "const" means can't be changed by the control plane
         const default_action = NoAction();
 
-        /* Don't specify size because this is a static table */
+        /* Don't specify size because this table has static entries */
         //size = 1;
 
         /*
@@ -243,45 +236,81 @@ control IngressProcess(inout headers hdr,
         }
     }
 
-    /* Define a table to store MAC destination addresses. */
-    table dmac {
+    /* Define a table to store srouce MAC addresses. */
+    table src_mac {
         /* Set of header fields used in the table lookup */
         key = {
-            hdr.ethernet.dstAddr: exact;
+            hdr.ethernet.srcAddr: exact;
         }
         /*
         Set of possible actions the table lookup will respond with.
-        Only one action can be executed, therefor dual-purpose actions are
-        defined which learn the source MAC address and forward the packet to
-        the destination MAC address.
+        A table lookup can only respond (if a match is found) with a single
+        action, therefor only one action can be executed. As a result,
+        dual-purpose actions are defined which learn the source MAC address
+        and forward the packet to the destination MAC address.
         */
         actions = {
-            learn_mac_via_digest_and_forward;
-            learn_mac_via_digest_and_broadcast;
-            learn_mac_via_clone_and_forward;
-            learn_mac_via_clone_and_broadcast;
-            drop;
+            learn_mac_via_digest;
+            learn_mac_via_clone;
+            NoAction;
         }
+
+        /*
+        The default action is only applied if no match was found in the table
+        (meaning, unknown destination MAC). In this case learn the MAC address.
+
+        The control plane will set the default action to either:
+        * learn source MAC via digest message, or
+        * learn source MAC via packet clone
+        depending on which CLI option the control plane was started with.
+        */
+        default_action = NoAction();
+
+        // Max number of "key" (MAC address) entries
+        size = 4096;
+    }
+
+    /* Define a table to store destination MAC addresses. */
+    table dst_mac {
+        key = {
+            hdr.ethernet.dstAddr: exact;
+        }
+        actions = {
+            l2_forward;
+            broadcast;
+        }
+
         /*
         "const" means the default action can't be changed by the control plane.
 
         The default action is only applied if no match was found in the table
         (meaning, unknown destination MAC). In this case we broadcast.
-
-        The control plane will set the default action to either:
-        * learn source MAC via digest message then broadcast, or
-        * learn source MAC via packet clone then broadcast
-
-        depending on which CLI option the control plane was started with.
         */
-        default_action = drop();
-        size = 4096; // Max number of "key" (MAC address) entries
+        const default_action = broadcast();
+
+        size = 4096;
     }
 
     apply {
         ingressFrames.count((bit<32>)standard_metadata.ingress_port);
+
+        /*
+        Drop frames that came in via the CPU punt port,
+        this should be egress only:
+        */
+        if (standard_metadata.ingress_port == CPU_PORT_ID) {
+            mark_to_drop(standard_metadata);
+            exit;
+        }
+
+        /* Drop frames with invalid source MACs */
         bad_macs.apply();
-        dmac.apply();
+
+        /* Lookup source MAC */
+        src_mac.apply();
+
+        /* Lookup destination MAC */
+        dst_mac.apply();
     }
 }
 

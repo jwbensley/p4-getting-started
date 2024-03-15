@@ -75,22 +75,7 @@ ip netns exec 2 ip r
 
 exit
 
-ROOT_DIR=/l3_fwd
-PROG=l3_fwd
-p4c --target bmv2 --arch v1model --std p4-16 -o "$ROOT_DIR" --p4runtime-files "${ROOT_DIR}/${PROG}.p4.txt" "${ROOT_DIR}/${PROG}.p4"
-simple_switch -i 0@l2_r0 -i 1@l2_r1 -L debug --log-console --dump-packet-data 64 "${ROOT_DIR}/${PROG}.json" &
-# Wait for the switch to start before trying to access the control plane (thrift) via simple_switch_CLI
-sleep 2
-# Program some static MAC entries.
-# Note that broadcast sends to port 1, meaning interface l2_0 in namespace l2_0 can ARP for 10.0.0.4, but 10.0.0.4 can't ARP for 10.0.0.1.
-# This means that in this simple demo, 10.0.0.1 MUST ping 10.0.0.4, otherwise MAC resolution will fail:
-simple_switch_CLI << EOF
-table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:01 => 0
-table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:04 => 1
-table_add MyIngress.mac_addresses MyIngress.l2_forward FF:FF:FF:FF:FF:FF => 1
-EOF
-read
-
-# Debugging commands:
-# 
-#tcpdump -nlASXevvv -s 0 -i l2_r1
+#ROOT_DIR=/l3_fwd
+#PROG=l3_fwd
+#p4c --target bmv2 --arch v1model --std p4-16 -o "$ROOT_DIR" --p4runtime-files "${ROOT_DIR}/${PROG}.p4.txt" "${ROOT_DIR}/${PROG}.p4"
+#simple_switch -i 0@l2_r0 -i 1@l2_r1 -L debug --log-console --dump-packet-data 64 "${ROOT_DIR}/${PROG}.json" &
