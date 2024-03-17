@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 
 import argparse
-import sys
 from typing import Any
 from p4utils.utils.sswitch_thrift_API import SimpleSwitchThriftAPI
-from scapy.all import Ether, sniff, Packet, BitField, raw
+from scapy.layers.l2 import Ether  # type: ignore
+from scapy.sendrecv import sniff  # type: ignore
 
+class Settings:
+    ACTION_FORWARD = "forward"
+    ACTION_LEARN_VIA_CLONE = "learn_via_clone"
+    ACTION_LEARN_VIA_DIGEST = "learn_via_digest"
+    ACTION_NO_ACTION = "NoAction"
+    CPU_MIRROR_PORT = "lo" # Interface on the Linux host to bind to simple switch port ID $CPU_MIRROR_PORT_ID
+    CPU_MIRROR_PORT_ID = 100 # Port ID for CPU punted frames
+    SWITCH_PORTS = [0, 1] # List of forwarding plane ports - must not include control-plane port, or drop port
+    TABLE_SRC_MACS="src_macs"
+    TABLE_DST_MACS="dst_macs"
+    THRIFT_PORT = 9090
+    THRIFT_IP = "localhost"
 
-class CpuHeader(Packet):
-    name = 'CpuPacket'
-    fields_desc = [BitField('macAddr',0,48), BitField('ingress_port', 0, 16)]
-
-CPU_MIRROR_PORT = "lo" # Interface on the Linux host to bind to simple switch port ID $CPU_MIRROR_PORT_ID
-CPU_MIRROR_PORT_ID = 100 # Port ID for CPU punted frames
-THRIFT_PORT = 9090
-THRIFT_IP = "localhost"
-SWITCH_PORTS = [0, 1] # List of forwarding plane ports - must not include control-plane port
-MAC_TABLE="dmac"
-ACTION_CLONE_BROADCAST = "learn_mac_via_clone_and_broadcast"
 
 def create_multicast_groups() -> None:
     """
@@ -34,8 +35,8 @@ def create_multicast_groups() -> None:
     """
     rid = 0
 
-    for ingress_port in SWITCH_PORTS:
-        port_list = SWITCH_PORTS[:]
+    for ingress_port in Settings.SWITCH_PORTS:
+        port_list = Settings.SWITCH_PORTS[:]
         # Delete ingress port from list of all switch ports
         del(port_list[port_list.index(ingress_port)])
         # Add a new multicast group
@@ -44,12 +45,22 @@ def create_multicast_groups() -> None:
         handle = controller.mc_node_create(rid, port_list)
         # Associate with mc grp
         controller.mc_node_associate(mc_grp_id, handle)
-        # Fill broadcast table
-        controller.table_add("dmac", "set_mcast_grp", [str(ingress_port)], [str(mc_grp_id)])
         mc_grp_id +=1
         rid +=1
 
-    print(f"Multicast data: {controller.mc_dump()}")
+def learn_via_clone_loop() -> None:
+    print(f"Creating mirror port with ID {Settings.CPU_MIRROR_PORT_ID} on interface {Settings.CPU_MIRROR_PORT}")
+    controller.mirroring_add(mirror_id=Settings.CPU_MIRROR_PORT_ID, egress_port=Settings.CPU_MIRROR_PORT_ID)
+
+    print(f"Setting default action on table {Settings.TABLE_SRC_MACS} to {Settings.ACTION_LEARN_VIA_CLONE}")
+    controller.table_set_default(table_name=Settings.TABLE_SRC_MACS, action_name=Settings.ACTION_LEARN_VIA_CLONE)
+
+    print(f"Going to sniff for CPU punted frames on interface {Settings.CPU_MIRROR_PORT}")
+    sniff(iface=Settings.CPU_MIRROR_PORT, prn=process_cpu_frame)
+
+def learn_via_digest_loop() -> None:
+    print(f"Setting default action on table {Settings.TABLE_SRC_MACS} to {Settings.ACTION_LEARN_VIA_DIGEST}")
+    controller.table_set_default(table_name=Settings.TABLE_SRC_MACS, action_name=Settings.ACTION_LEARN_VIA_DIGEST)
 
 def parse_args() ->  dict[str, Any]:
     parser = argparse.ArgumentParser(
@@ -68,34 +79,47 @@ def parse_args() ->  dict[str, Any]:
         "--id",
         help="P4 switch interface ID of punted frames.",
         type=int,
-        required=True,
-        default=CPU_MIRROR_PORT_ID,
+        required=False,
+        default=Settings.CPU_MIRROR_PORT_ID,
     )
     parser.add_argument(
         "--int",
         help="Linux interface to listen for CPU punted packets.",
         type=str,
-        required=True,
-        default=CPU_MIRROR_PORT,
+        required=False,
+        default=Settings.CPU_MIRROR_PORT,
     )
-    return vars(parser.parse_args())
+    args = vars(parser.parse_args())
 
-def process_cpu_frame(frame):
-    print(f"Received type {type(frame)}")
-    packet = Ether(raw(frame))
-    print(f"Received packet {packet}")
-    if packet.type == 0x1234:
-        cpu_header = CpuHeader(bytes(packet.load))
-        print(f"Learning MAC {cpu_header.macAddr:%012X} via port {cpu_header.ingress_port}")
-        controller.table_add(MAC_TABLE, "learn_mac_via_clone_and_forward", [str(cpu_header.macAddr)], [str(cpu_header.ingress_port)])
+    if args["id"] != Settings.CPU_MIRROR_PORT_ID:
+        Settings.CPU_MIRROR_PORT_ID = args["id"]
+    if args["int"] != Settings.CPU_MIRROR_PORT:
+        Settings.CPU_MIRROR_PORT = args["int"]
+
+    return args
+
+def process_cpu_frame(frame: Ether):
+    src_mac = int.from_bytes(bytes(frame)[6:12], "big")
+    ingress_port = int.from_bytes(bytes(frame)[12:15], "big")
+
+    if ingress_port > 2**16:
+        return ##################################################### What are these packets? CPU punting is using same interface as Thrift!
+
+    handle = controller.get_handle_from_match(table_name=Settings.TABLE_SRC_MACS, match_keys=[str(ingress_port), str(src_mac)])
+    if handle != None:
+        print(f"Table entry already exists for ({ingress_port},{src_mac}) at handle {handle}")
+    else:
+        controller.table_add(table_name=Settings.TABLE_SRC_MACS, action_name=Settings.ACTION_NO_ACTION, match_keys=[str(ingress_port), str(src_mac)])
+        controller.table_add(table_name=Settings.TABLE_DST_MACS, action_name=Settings.ACTION_FORWARD, match_keys=[str(src_mac)], action_params=[str(ingress_port)])
+        print(f"Created table entry for MAC {src_mac} via port {ingress_port}")
 
 if __name__ == "__main__":
     # Parse CLI args
     args = parse_args()
 
-    controller = SimpleSwitchThriftAPI(thrift_port=THRIFT_PORT, thrift_ip=THRIFT_IP)
+    controller = SimpleSwitchThriftAPI(thrift_port=Settings.THRIFT_PORT, thrift_ip=Settings.THRIFT_IP)
 
-    # Resets all state in the switch (table entries, registers, ...), but P4 config is preserved.
+    # Resets all state in the switch
     controller.reset_state()
 
     """
@@ -106,11 +130,7 @@ if __name__ == "__main__":
     create_multicast_groups()
 
     if not args["digest"]:
-        print(f"Creating mirror port with ID {CPU_MIRROR_PORT_ID} on interface {CPU_MIRROR_PORT}")
-        controller.mirroring_add(mirror_id=CPU_MIRROR_PORT_ID, egress_port=CPU_MIRROR_PORT_ID)
+        learn_via_clone_loop()
+    else:
+        learn_via_digest_loop()
 
-        print(f"Setting default action on table {MAC_TABLE} to {ACTION_CLONE_BROADCAST}")
-        controller.table_set_default(table_name=MAC_TABLE, action_name=ACTION_CLONE_BROADCAST, action_params=["1"])
-
-        print(f"Going to sniff for CPU punted frames on interface {CPU_MIRROR_PORT}")
-        sniff(iface=CPU_MIRROR_PORT, prn=process_cpu_frame)

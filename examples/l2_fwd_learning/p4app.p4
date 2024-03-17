@@ -31,9 +31,26 @@ header ethernet_t {
     MacAddr_t srcAddr;
 }
 
+header punt_t {
+    /*
+    We can't use PortId_t here because BMv2 architecture only accepts headers
+    which are multiples of 8 bits.
+    */
+    bit<16> ingress_port;
+}
+
 /* The stack of all headers the ingress parser will need to parse */
 struct headers {
     ethernet_t ethernet;
+    /*
+    When using the clone packet punt method (as opposed to the digest method),
+    any addition data which needs to be sent to the CPU (meaning, meta data in
+    addition to the original frame headers) can be defined here as extra headers.
+    These extra headers can then be written to the clone frame before it is sent
+    to the CPU. This allows extra information to be sent to the CPU in additional
+    to the orginal headers.
+    */
+    punt_t punt_data;
 }
 
 /*
@@ -42,8 +59,15 @@ Per-packet user defined metadata can be defined here.
 */
 struct metadata {
     /*
-    When using the clone packet punt method (as opposed to the digest method)
-    the user defined meta data is also sent to the CPU, along with the frame.
+    During ingress processing, if the frame is going to be CPU punted,
+    the ingress port of a frame will be stored here as metadata.
+    This metadata is cloned in addition to the frame, and available during
+    egress passing, meaning it can be sent to the CPU as the value of the custom
+    punt header defined as punt_t.
+
+    On BMv2 the ingress port is set in standard_metadata_t, but this is not
+    copied for the clone packet which is being punted. This is why we need this
+    user defined metadata.
     */
     @field_list(0)
     PortId_t ingress_port;
@@ -51,8 +75,8 @@ struct metadata {
 
 /* Define the message payload sent to the control-plane for MAC learning. */
 struct digest_t {
-    MacAddr_t srcAddr;
-    PortId_t ingressPort;
+    MacAddr_t srcAddr; ///////////////////////////////////////////////////////////////////////////
+    PortId_t ingressPort; ///////////////////////////////////////////////////////////////////////////
 }
 
 /*
@@ -150,13 +174,13 @@ control IngressProcess(inout headers hdr,
     /*
     Forward a frame to an egress Port ID.
 
-    Action parameters that have no direction indicate "action data."
+    Action parameters that have no direction (in/out/inout) indicate "action data."
     All such parameters must appear at the end of the parameter list.
     When used in a match-action table, these parameters will be provided by the
     table entries e.g., as specified by the control plane, the `default_action`
     table property, or the `entries` table property.
     */
-    action l2_forward(PortId_t egress_port) {
+    action forward(PortId_t egress_port) {
         standard_metadata.egress_port = egress_port;
     }
 
@@ -181,7 +205,7 @@ control IngressProcess(inout headers hdr,
     An action to CPU punt the frame (so that the CPU can program the MAC into
     the forwarding table).
     */
-    action learn_mac_via_digest() {
+    action learn_via_digest() {
         /*
         A digest is one mechanism to send a message from the data plane to the control plane.
         This is defined by the target architecture.
@@ -198,12 +222,16 @@ control IngressProcess(inout headers hdr,
     An action to CPU punt the frame (so that the CPU can program the MAC into
     the forwarding table).
     */
-    action learn_mac_via_clone() {
+    action learn_via_clone() {
         /*
         clone_preserving_field_list() and clone() are defined in v1model.p4
-        They both create a copy of the packet which is sent to a CPU
-        "Ethernet" port, which must be "sniffed" by the control plane
+
+        They both create a copy of the packet, in this case we will send one
+        copy to a CPU port, which must be "sniffed" by the control plane
         (the former preserves user-defined meta data, the later does not).
+
+        This will also set standard_metadata.instance_type to 1 on the cloned
+        packet, so that it can be distinguished from the orginal packet.
         */
         meta.ingress_port = standard_metadata.ingress_port;
         clone_preserving_field_list(CloneType.I2E, (bit<32>)CPU_PORT_ID, 0);
@@ -237,27 +265,26 @@ control IngressProcess(inout headers hdr,
     }
 
     /* Define a table to store srouce MAC addresses. */
-    table src_mac {
+    table src_macs {
         /* Set of header fields used in the table lookup */
         key = {
+            standard_metadata.ingress_port: exact;
             hdr.ethernet.srcAddr: exact;
         }
         /*
         Set of possible actions the table lookup will respond with.
         A table lookup can only respond (if a match is found) with a single
-        action, therefor only one action can be executed. As a result,
-        dual-purpose actions are defined which learn the source MAC address
-        and forward the packet to the destination MAC address.
+        action, therefor only one action can be executed.
         */
         actions = {
-            learn_mac_via_digest;
-            learn_mac_via_clone;
+            learn_via_digest;
+            learn_via_clone;
             NoAction;
         }
 
         /*
         The default action is only applied if no match was found in the table
-        (meaning, unknown destination MAC). In this case learn the MAC address.
+        (meaning, unknown source MAC). In this case learn the MAC address.
 
         The control plane will set the default action to either:
         * learn source MAC via digest message, or
@@ -271,12 +298,12 @@ control IngressProcess(inout headers hdr,
     }
 
     /* Define a table to store destination MAC addresses. */
-    table dst_mac {
+    table dst_macs {
         key = {
             hdr.ethernet.dstAddr: exact;
         }
         actions = {
-            l2_forward;
+            forward;
             broadcast;
         }
 
@@ -306,12 +333,35 @@ control IngressProcess(inout headers hdr,
         /* Drop frames with invalid source MACs */
         bad_macs.apply();
 
+        /*
+        Having two tables seem inificient at first glance however there are a
+        few things to consider here:
+
+        * P4 is an abstraction layer. Depending on the target,
+          these two tables could be merged into one table when compiled,
+          preventing the double storing of MAC addresses.
+
+        * Having two tables means that depending on the target,
+          both tables could be searched in parallel actually giving a performance
+          boost (or atleast, no performance degredation),
+
+        * The P4 language itselfs does not prohibit performing a lookup against
+          the same table twice. But many targets will because of the
+          match-action design paradigm, different actions should be in different
+          tables. This prevents any kind of loop too, and P4 doesn't support loops.
+          Therefor there shouldn't be a need to query the same table more than once.
+          One way to work around this on those targets would be to recirc
+          the packet but this is halving the pps rate, so it would need to be
+          really worth the performance loss.
+        */
+
         /* Lookup source MAC */
-        src_mac.apply();
+        src_macs.apply();
 
         /* Lookup destination MAC */
-        dst_mac.apply();
+        dst_macs.apply();
     }
+
 }
 
 /* Egress processing is required */
@@ -319,11 +369,31 @@ control EgressProcess(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
     apply {
-        // Implement split horizon
-        if (standard_metadata.egress_port == standard_metadata.ingress_port) {
-            mark_to_drop(standard_metadata);
+
+        // If CPU punting this frame...
+        if (standard_metadata.instance_type == 1){
+            /*
+            Add the ingress port ID to the custom header field being added
+            to the frame. The custom header is unused until this point.
+            Headers default to an invalid state, meaning they won't be written
+            to a frame by deault on egress.
+
+            Set the custom header to valid, set the value, and then truncate the
+            frame so that only the "ethernet" and "punt_data" headers will be
+            transmitted towards the CPU. No other data is needed for MAC
+            learning.
+            */
+            hdr.punt_data.setValid();
+            hdr.punt_data.ingress_port = (bit<16>)meta.ingress_port;
+            truncate((bit<32>)14); // Size in bytes
+            log_msg("Going to punt frame with source MAC {} and ingress port {}", {hdr.ethernet.srcAddr, hdr.punt_data.ingress_port});
         } else {
-            egressFrames.count((bit<32>)standard_metadata.egress_port);
+            // Implement split horizon
+            if (standard_metadata.egress_port == standard_metadata.ingress_port) {
+                mark_to_drop(standard_metadata);
+            } else {
+                egressFrames.count((bit<32>)standard_metadata.egress_port);
+            }
         }
     }
 }
@@ -335,8 +405,16 @@ control EgressChecksumCompute(inout headers hdr, inout metadata meta) {
 
 /* Deparser is required */
 control EgressDeparser(packet_out packet, in headers hdr) {
+    /*
+    This is where header changes are written to the frame before transmitting.
+    Write the unchanged Ethernet header to the frame, and then write the ingress
+    port ID meta header directly after that. This means the frame is now mangled.
+    This is fine becuase it's being send to the control-plane which expects this
+    format.
+    */
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.punt_data);
     }
 }
 
