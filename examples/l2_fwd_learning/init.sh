@@ -5,8 +5,6 @@
 # between them:
 #
 #    Software Switch      |                          Linux Kernel
-#                         |
-#                         |
 #                         |   -------------------------      -------------------------
 #                         |   -                       -      -                       -
 #                         |   - Namespace: None       -      - Namespace: l2_0       -
@@ -20,10 +18,6 @@
 # └────────┬──────────┘   |   - └───────────────────┘ -      - └───────────────────┘ -
 #          │              |   -                       -      -                       -
 #          │              |   -                       -      -------------------------
-#          │              |   -                       -
-#          │              |   -                       -
-#          │              |   -                       -
-#          │              |   -                       -
 #          │              |   -                       -      -------------------------
 #          │              |   -                       -      -                       -
 # ┌────────┴──────────┐   |   - ┌───────────────────┐ -      - ┌───────────────────┐ -
@@ -32,12 +26,19 @@
 # │                   ├─────────┤                   ├──────────┤ 10.0.0.4/24       │ -
 # │                   │   |   - │ 00:00:00:00:00:03 │ -      - │ 00:00:00:00:00:04 │ -
 # │                   │   |   - │                   │ -      - │                   │ -
-# └───────────────────┘   |   - └───────────────────┘ -      - └───────────────────┘ -
-#                         |   -                       -      -                       -
-#                         |   -                       -      - Namespace: l2_1       -
-#                         |   -                       -      -                       -
-#                         |   -------------------------      -------------------------
-#
+# └────────┬──────────┘   |   - └───────────────────┘ -      - └───────────────────┘ -
+#          |              |   -                       -      -                       -
+#          |              |   -                       -      - Namespace: l2_1       -
+#          |              |   -                       -      -                       -
+#          |              |   -                       -      -------------------------
+# ┌────────┴──────────┐   |   - ┌───────────────────┐ -
+# │                   │   |   - │                   │ -
+# │ intf: 100         │   |   - │ intf: cpu         │ -
+# │                   ├─────────┤                   │ -
+# │                   │   |   - │                   │ -
+# │                   │   |   - │                   │ -
+# └───────────────────┘   |   - └───────────────────┘ -
+#                         |   -------------------------
 
 set -e
 set -u
@@ -76,13 +77,20 @@ then
     echo ""
     ip netns exec l2_1 ip a
     ip netns exec l2_1 ip r
+
+    # For CPU punted frames
+    ip link add cpu type veth peer name cpu_0
+    sysctl -w net.ipv6.conf.cpu.disable_ipv6=1
+    sysctl -w net.ipv6.conf.cpu_0.disable_ipv6=1
+    ip link set up dev cpu
+    ip link set up dev cpu_0
 fi
 
 SCRIPT_DIR=$(dirname "$0")
 p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
 # ^ this is basically the same as:
 # p4c-bm2-ss --target bmv2 --arch v1model --std p4-16 -o "${SCRIPT_DIR}/p4app.p4i" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
-simple_switch -i 0@l2_r0 -i 1@l2_r1 -i 100@lo -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
+simple_switch -i 0@l2_r0 -i 1@l2_r1 -i 100@cpu -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
 # Wait for the switch to start before trying to access the control plane
 sleep 2
 

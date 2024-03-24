@@ -194,11 +194,13 @@ control IngressProcess(inout headers hdr,
         The v1model.p4 standard_metadata field mcast_grp specifies 1 to 65,535
         multicast group id values.
 
-        Set multicast group to the ingress port ID.
-        The control will have created this group already, as a group of ports
-        which contains all ports in the switch excet the ingress port.
+        Set multicast group to the ingress port ID + 1 (because the first switch
+        port is 0 and 0 means "no multicast").
+        The controller will have created this group already, as a group of ports
+        which contains all ports in the switch except the ingress port.
         */
-        standard_metadata.mcast_grp = (bit<16>)standard_metadata.ingress_port;
+        standard_metadata.mcast_grp = (bit<16>)standard_metadata.ingress_port + 1;
+        log_msg("Muticast group set to {}", {standard_metadata.mcast_grp});
     }
 
     /*
@@ -266,7 +268,19 @@ control IngressProcess(inout headers hdr,
 
     /* Define a table to store srouce MAC addresses. */
     table src_macs {
-        /* Set of header fields used in the table lookup */
+        /*
+          Set of header fields used in the table lookup.
+
+          This is a tuple of source MAC + ingress port ID.
+          As long as we keep seeing the MAC address via the same ingress port,
+          don't punt it.
+
+          This prevents every frame from being CPU punted which would kill the
+          control plane.
+
+          We only punt when a MAC is seen via a new ingres port ID (meaning it's
+          either the first time we've seen the MAC or there was a MAC move).
+        */
         key = {
             standard_metadata.ingress_port: exact;
             hdr.ethernet.srcAddr: exact;
@@ -345,7 +359,7 @@ control IngressProcess(inout headers hdr,
           both tables could be searched in parallel actually giving a performance
           boost (or atleast, no performance degredation),
 
-        * The P4 language itselfs does not prohibit performing a lookup against
+        * The P4 language itself does not prohibit performing a lookup against
           the same table twice. But many targets will because of the
           match-action design paradigm, different actions should be in different
           tables. This prevents any kind of loop too, and P4 doesn't support loops.
@@ -405,15 +419,22 @@ control EgressChecksumCompute(inout headers hdr, inout metadata meta) {
 
 /* Deparser is required */
 control EgressDeparser(packet_out packet, in headers hdr) {
-    /*
-    This is where header changes are written to the frame before transmitting.
-    Write the unchanged Ethernet header to the frame, and then write the ingress
-    port ID meta header directly after that. This means the frame is now mangled.
-    This is fine becuase it's being send to the control-plane which expects this
-    format.
-    */
+    //This is where header changes are written to the frame before transmitting.
+
     apply {
         packet.emit(hdr.ethernet);
+        /*
+        In the case of a CPU punted frame, the unchanged Ethernet header is
+        written to the egress frame.
+
+        Next the ingress port ID meta header is written directly after the
+        header Ethernet (this only happys if the custom meta header has been
+        setValid() earlier in EgressProcess()).
+
+        This means the frame is now mangled (if it's a punt frame).
+        This is fine becuase it's being send to the control-plane which expects
+        this mangled format.
+        */
         packet.emit(hdr.punt_data);
     }
 }
