@@ -193,7 +193,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/examples/l2_fwd_learning/p4app.p4",
-        "line" : 421,
+        "line" : 426,
         "column" : 8,
         "source_fragment" : "EgressDeparser"
       },
@@ -296,7 +296,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["standard_metadata", "egress_port"]
+              "value" : ["standard_metadata", "egress_spec"]
             },
             {
               "type" : "runtime_data",
@@ -305,9 +305,9 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 184,
+            "line" : 189,
             "column" : 8,
-            "source_fragment" : "standard_metadata.egress_port = egress_port"
+            "source_fragment" : "standard_metadata.egress_spec = egress_port"
           }
         }
       ]
@@ -364,7 +364,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 202,
+            "line" : 207,
             "column" : 8,
             "source_fragment" : "standard_metadata.mcast_grp = (bit<16>)standard_metadata.ingress_port + 1"
           }
@@ -416,7 +416,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 203,
+            "line" : 208,
             "column" : 45,
             "source_fragment" : "        log_msg(\\\"Muticast group set to {}\\\", {standard_metadata.mcast_grp});"
           }
@@ -440,7 +440,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 203,
+            "line" : 208,
             "column" : 8,
             "source_fragment" : "        log_msg(\\\"Muticast group set to {}\\\", {standard_metadata.mcast_grp});"
           }
@@ -466,7 +466,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 220,
+            "line" : 225,
             "column" : 29,
             "source_fragment" : "hdr.ethernet.srcAddr"
           }
@@ -485,7 +485,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 220,
+            "line" : 225,
             "column" : 51,
             "source_fragment" : "standard_metadata.ingress_port"
           }
@@ -504,7 +504,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 220,
+            "line" : 225,
             "column" : 8,
             "source_fragment" : "digest<digest_t>(0, {hdr.ethernet.srcAddr, standard_metadata.ingress_port})"
           }
@@ -530,7 +530,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 238,
+            "line" : 243,
             "column" : 8,
             "source_fragment" : "meta.ingress_port = standard_metadata.ingress_port"
           }
@@ -549,7 +549,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 239,
+            "line" : 244,
             "column" : 8,
             "source_fragment" : "clone_preserving_field_list(CloneType.I2E, (bit<32>)CPU_PORT_ID, 0)"
           }
@@ -557,7 +557,7 @@
       ]
     },
     {
-      "name" : "p4app343",
+      "name" : "p4app348",
       "id" : 7,
       "runtime_data" : [],
       "primitives" : [
@@ -571,7 +571,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 343,
+            "line" : 348,
             "column" : 12,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -581,7 +581,7 @@
           "parameters" : [],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 344,
+            "line" : 349,
             "column" : 12,
             "source_fragment" : "exit"
           }
@@ -589,7 +589,7 @@
       ]
     },
     {
-      "name" : "p4app336",
+      "name" : "p4app341",
       "id" : 8,
       "runtime_data" : [],
       "primitives" : [
@@ -620,7 +620,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 336,
+            "line" : 341,
             "column" : 28,
             "source_fragment" : "(bit<32>)standard_metadata.ingress_port"
           }
@@ -639,7 +639,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 336,
+            "line" : 341,
             "column" : 8,
             "source_fragment" : "ingressFrames.count((bit<32>)standard_metadata.ingress_port)"
           }
@@ -647,7 +647,7 @@
       ]
     },
     {
-      "name" : "p4app400",
+      "name" : "p4app405",
       "id" : 9,
       "runtime_data" : [],
       "primitives" : [
@@ -661,7 +661,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 400,
+            "line" : 405,
             "column" : 12,
             "source_fragment" : "hdr.punt_data.setValid()"
           }
@@ -693,7 +693,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 401,
+            "line" : 406,
             "column" : 12,
             "source_fragment" : "hdr.punt_data.ingress_port = (bit<16>)meta.ingress_port"
           }
@@ -708,7 +708,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 402,
+            "line" : 407,
             "column" : 12,
             "source_fragment" : "truncate((bit<32>)14)"
           }
@@ -727,7 +727,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 403,
+            "line" : 408,
             "column" : 83,
             "source_fragment" : "            log_msg(\\\"Going to punt frame with source MAC {} and ingress port {}\\\", {hdr.ethernet.srcAddr, hdr.punt_data.ingress_port});"
           }
@@ -759,7 +759,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 403,
+            "line" : 408,
             "column" : 105,
             "source_fragment" : "            log_msg(\\\"Going to punt frame with source MAC {} and ingress port {}\\\", {hdr.ethernet.srcAddr, hdr.punt_data.ingress_port});"
           }
@@ -787,7 +787,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 403,
+            "line" : 408,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Going to punt frame with source MAC {} and ingress port {}\\\", {hdr.ethernet.srcAddr, hdr.punt_data.ingress_port});"
           }
@@ -795,7 +795,7 @@
       ]
     },
     {
-      "name" : "p4app407",
+      "name" : "p4app412",
       "id" : 10,
       "runtime_data" : [],
       "primitives" : [
@@ -809,7 +809,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 407,
+            "line" : 412,
             "column" : 16,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -817,7 +817,7 @@
       ]
     },
     {
-      "name" : "p4app409",
+      "name" : "p4app414",
       "id" : 11,
       "runtime_data" : [],
       "primitives" : [
@@ -848,7 +848,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 409,
+            "line" : 414,
             "column" : 35,
             "source_fragment" : "(bit<32>)standard_metadata.egress_port"
           }
@@ -867,7 +867,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 409,
+            "line" : 414,
             "column" : 16,
             "source_fragment" : "egressFrames.count((bit<32>)standard_metadata.egress_port)"
           }
@@ -885,14 +885,14 @@
         "column" : 8,
         "source_fragment" : "IngressProcess"
       },
-      "init_table" : "tbl_p4app336",
+      "init_table" : "tbl_p4app341",
       "tables" : [
         {
-          "name" : "tbl_p4app336",
+          "name" : "tbl_p4app341",
           "id" : 0,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 336,
+            "line" : 341,
             "column" : 8,
             "source_fragment" : "ingressFrames.count((bit<32>)standard_metadata.ingress_port)"
           },
@@ -904,10 +904,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [8],
-          "actions" : ["p4app336"],
+          "actions" : ["p4app341"],
           "base_default_next" : "node_3",
           "next_tables" : {
-            "p4app336" : "node_3"
+            "p4app341" : "node_3"
           },
           "default_entry" : {
             "action_id" : 8,
@@ -917,11 +917,11 @@
           }
         },
         {
-          "name" : "tbl_p4app343",
+          "name" : "tbl_p4app348",
           "id" : 1,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 343,
+            "line" : 348,
             "column" : 12,
             "source_fragment" : "mark_to_drop(standard_metadata); ..."
           },
@@ -933,10 +933,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [7],
-          "actions" : ["p4app343"],
+          "actions" : ["p4app348"],
           "base_default_next" : "IngressProcess.bad_macs",
           "next_tables" : {
-            "p4app343" : "IngressProcess.bad_macs"
+            "p4app348" : "IngressProcess.bad_macs"
           },
           "default_entry" : {
             "action_id" : 7,
@@ -950,7 +950,7 @@
           "id" : 2,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 246,
+            "line" : 251,
             "column" : 10,
             "source_fragment" : "bad_macs"
           },
@@ -985,7 +985,7 @@
             {
               "source_info" : {
                 "filename" : "/examples/l2_fwd_learning/p4app.p4",
-                "line" : 265,
+                "line" : 270,
                 "column" : 12,
                 "source_fragment" : "(0xFFFFFFFFFFFF): drop()"
               },
@@ -1008,7 +1008,7 @@
           "id" : 3,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 270,
+            "line" : 275,
             "column" : 10,
             "source_fragment" : "src_macs"
           },
@@ -1052,7 +1052,7 @@
           "id" : 4,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 315,
+            "line" : 320,
             "column" : 10,
             "source_fragment" : "dst_macs"
           },
@@ -1092,7 +1092,7 @@
           "id" : 0,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 342,
+            "line" : 347,
             "column" : 12,
             "source_fragment" : "standard_metadata.ingress_port == CPU_PORT_ID"
           },
@@ -1110,7 +1110,7 @@
               }
             }
           },
-          "true_next" : "tbl_p4app343",
+          "true_next" : "tbl_p4app348",
           "false_next" : "IngressProcess.bad_macs"
         }
       ]
@@ -1120,18 +1120,18 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/examples/l2_fwd_learning/p4app.p4",
-        "line" : 382,
+        "line" : 387,
         "column" : 8,
         "source_fragment" : "EgressProcess"
       },
       "init_table" : "node_10",
       "tables" : [
         {
-          "name" : "tbl_p4app400",
+          "name" : "tbl_p4app405",
           "id" : 5,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 400,
+            "line" : 405,
             "column" : 12,
             "source_fragment" : "hdr.punt_data.setValid(); ..."
           },
@@ -1143,10 +1143,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [9],
-          "actions" : ["p4app400"],
+          "actions" : ["p4app405"],
           "base_default_next" : null,
           "next_tables" : {
-            "p4app400" : null
+            "p4app405" : null
           },
           "default_entry" : {
             "action_id" : 9,
@@ -1156,11 +1156,11 @@
           }
         },
         {
-          "name" : "tbl_p4app407",
+          "name" : "tbl_p4app412",
           "id" : 6,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 407,
+            "line" : 412,
             "column" : 16,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           },
@@ -1172,10 +1172,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [10],
-          "actions" : ["p4app407"],
+          "actions" : ["p4app412"],
           "base_default_next" : null,
           "next_tables" : {
-            "p4app407" : null
+            "p4app412" : null
           },
           "default_entry" : {
             "action_id" : 10,
@@ -1185,11 +1185,11 @@
           }
         },
         {
-          "name" : "tbl_p4app409",
+          "name" : "tbl_p4app414",
           "id" : 7,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 409,
+            "line" : 414,
             "column" : 16,
             "source_fragment" : "egressFrames.count((bit<32>)standard_metadata.egress_port)"
           },
@@ -1201,10 +1201,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [11],
-          "actions" : ["p4app409"],
+          "actions" : ["p4app414"],
           "base_default_next" : null,
           "next_tables" : {
-            "p4app409" : null
+            "p4app414" : null
           },
           "default_entry" : {
             "action_id" : 11,
@@ -1221,7 +1221,7 @@
           "id" : 1,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 388,
+            "line" : 393,
             "column" : 12,
             "source_fragment" : "standard_metadata.instance_type == 1"
           },
@@ -1239,7 +1239,7 @@
               }
             }
           },
-          "true_next" : "tbl_p4app400",
+          "true_next" : "tbl_p4app405",
           "false_next" : "node_12"
         },
         {
@@ -1247,7 +1247,7 @@
           "id" : 2,
           "source_info" : {
             "filename" : "/examples/l2_fwd_learning/p4app.p4",
-            "line" : 406,
+            "line" : 411,
             "column" : 16,
             "source_fragment" : "standard_metadata.egress_port == standard_metadata.ingress_port"
           },
@@ -1265,8 +1265,8 @@
               }
             }
           },
-          "true_next" : "tbl_p4app407",
-          "false_next" : "tbl_p4app409"
+          "true_next" : "tbl_p4app412",
+          "false_next" : "tbl_p4app414"
         }
       ]
     }

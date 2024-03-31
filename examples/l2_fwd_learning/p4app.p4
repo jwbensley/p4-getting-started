@@ -75,8 +75,8 @@ struct metadata {
 
 /* Define the message payload sent to the control-plane for MAC learning. */
 struct digest_t {
-    MacAddr_t srcAddr; ///////////////////////////////////////////////////////////////////////////
-    PortId_t ingressPort; ///////////////////////////////////////////////////////////////////////////
+    MacAddr_t srcAddr;
+    PortId_t ingressPort;
 }
 
 /*
@@ -181,7 +181,12 @@ control IngressProcess(inout headers hdr,
     table property, or the `entries` table property.
     */
     action forward(PortId_t egress_port) {
-        standard_metadata.egress_port = egress_port;
+        /*
+        bmv2 uses egress_spec instead of egress_port.
+        This is seems to just be a legacy definition.
+        */
+        //standard_metadata.egress_port = egress_port;
+        standard_metadata.egress_spec = egress_port;
     }
 
     action broadcast() {

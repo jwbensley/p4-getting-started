@@ -91,13 +91,3 @@ p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files 
 # ^ this is basically the same as:
 # p4c-bm2-ss --target bmv2 --arch v1model --std p4-16 -o "${SCRIPT_DIR}/p4app.p4i" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
 simple_switch -i 0@l2_r0 -i 1@l2_r1 -i 100@cpu -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
-# Wait for the switch to start before trying to access the control plane
-sleep 2
-
-# docker compose exec p4 tcpdump -i lo -nnlASXvve -s 0
-# docker compose exec p4 ip netns exec l2_0 ping -c 1 10.0.0.4
-# docker compose exec p4 ip netns exec l2_1 ping -c 1 10.0.0.1
-
-#table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:01 => 0
-#table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:04 => 1
-#table_add MyIngress.mac_addresses MyIngress.l2_forward FF:FF:FF:FF:FF:FF => 1

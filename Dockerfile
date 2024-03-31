@@ -19,4 +19,6 @@ pip install -e "."
 
 COPY ./examples /examples
 
+RUN pip install -r /examples/requirements.txt
+
 WORKDIR /examples/

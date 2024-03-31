@@ -2,17 +2,20 @@
 
 import argparse
 import logging
+import pynng
+import struct
 import sys
+import time
 from typing import Any
 from p4utils.utils.sswitch_thrift_API import SimpleSwitchThriftAPI
 from scapy.layers.l2 import Ether  # type: ignore
 from scapy.sendrecv import sniff  # type: ignore
 
 class Settings:
-    ACTION_FORWARD = "forward"
-    ACTION_LEARN_VIA_CLONE = "learn_via_clone"
-    ACTION_LEARN_VIA_DIGEST = "learn_via_digest"
-    ACTION_NO_ACTION = "NoAction"
+    ACTION_FORWARD = "forward" # Deafult P4 table action for known dst MAC
+    ACTION_LEARN_VIA_CLONE = "learn_via_clone" # Default P4 table action for unknown src MAC
+    ACTION_LEARN_VIA_DIGEST = "learn_via_digest" # Default P4 table action for unknown src MAC
+    ACTION_NO_ACTION = "NoAction" # Default P4 table action for known src MAC
     CONTROLLER: SimpleSwitchThriftAPI
     COUNTER_INGRESS = "ingressFrames"
     COUNTER_EGRESS = "egressFrames"
@@ -34,7 +37,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
 
 def create_multicast_groups() -> None:
     """
@@ -84,6 +86,57 @@ def learn_via_clone_loop() -> None:
 def learn_via_digest_loop() -> None:
     logger.info(f"Setting default action on table {Settings.TABLE_SRC_MACS} to {Settings.ACTION_LEARN_VIA_DIGEST}")
     Settings.CONTROLLER.table_set_default(table_name=Settings.TABLE_SRC_MACS, action_name=Settings.ACTION_LEARN_VIA_DIGEST)
+
+    logger.info(f"Going to listen for CPU digest messages")
+    """
+    Settings.CONTROLLER.client has type "bm_runtime.standard.Standard.Client"
+    Settings.CONTROLLER.client.bm_mgmt_get_info() returns type "bm_runtime.standard.ttypes.BmConfig".
+
+    bm_runtime are C bindings: https://github.com/p4lang/behavioral-model/blob/main/include/bm/bm_runtime/
+    """
+    socket_address: str = Settings.CONTROLLER.client.bm_mgmt_get_info().notifications_socket
+
+    # Open a nano message subscription (the P4 device is the publisher)
+    with pynng.Sub0() as socket:
+        socket.subscribe("")
+        socket.dial(socket_address)
+        while True:
+            """
+            block=False prevents CTRL+C from caught and the program can't
+            be stopped.
+            Time.sleep(0) helps to create an infinite loop which doesn't pin
+            one of the CPU cores at 100%.
+            """
+            try:
+                msg: bytes = socket.recv(block=False)
+            except pynng.TryAgain:
+                time.sleep(0)
+                continue
+                
+            """
+            Binary messages are received which have to be unpacked.
+            Multiple P4 "digest" messages can be grouped into a single nano message.
+            The "headers" of the nano message are 32 bytes long.
+            """
+            starting_index = 32
+            topic, device_id, ctx_id, list_id, buffer_id, num = struct.unpack("<iQiiQi", msg[:starting_index])
+            logger.info(f"New digest nano message received with {num} digest message(s): {msg}")
+
+            for idx in range(num):
+                """
+                A 6 byte MAC + 2 byte port ID are sent in from the data plane in the digest message.
+                unpack() can't unpack that so we'll have to do it manually.
+                """
+                src_mac = int.from_bytes(msg[starting_index:starting_index+6], "big")
+                starting_index += 6
+                ingress_port = int.from_bytes(msg[starting_index:starting_index+2], "big")
+                starting_index += 2
+
+                print(f"Digest message {idx} contains src_mac: {src_mac}, ingress_port: {ingress_port}")
+                update_mac_tables(ingress_port, src_mac)
+
+            # Acknowledge digest
+            Settings.CONTROLLER.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
 
 def parse_args() ->  dict[str, Any]:
     parser = argparse.ArgumentParser(
