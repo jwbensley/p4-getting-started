@@ -123,4 +123,34 @@ tcpdump: listening on l2_r1, link-type EN10MB (Ethernet), snapshot length 262144
 
 ## l3_fwd_static
 
-It is not possible to implement a full ARP implementation directly in P4. For clients resolving the P4 router IP, P4 can be hard coded to match incoming ARP packets, perform an IP lookup of the IP in the ARP request, match it to a local interface IP, and respond with the MAC of the P4 router interface. However, when a P4 router receives a packet for an IP address on a different L3 subnet than the subnet used on the interface the packet was received from (meaning the packet needs to be L3 routed), and the P4 switch has a local interface in the destination L3 subnet but no MAC entry for the destination IP address, P4 is unable to buffer the packet and wait for an action to complete (send an ARP request and watch for an ARP response). In [this example](https://github.com/hesam4g/p4-arp) the P4 switch is programmed with the MAC and IP entries, and the P4 switch responds to ARP requests (this only works because the example is a single L2 broadcast domain).
+It is not possible to implement a full ARP or NDP implementation directly in P4. For clients trying to resolve the P4 router interface IP, P4 can be hard coded to match incoming ARP or NDP packets, perform an IP lookup of the IP in the request, match it to a local interface IP, and respond with the MAC of the P4 router interface. However, this is a bit of a hack, because most of the values would need to be hard coded at compile time.
+
+In addition, that only solves L3 resolution of the P4 router IP. When a P4 router receives a packet with an IP address in a subnet which configured on a different L3 interface than the subnet configured on the interface the packet was received on (meaning the packet needs to be L3 routed), if the P4 switch has no L2 entry for the destination IP address, P4 is unable to buffer the packet and wait for an action to complete (send an ARP/ND request and watch for a response, also updating forwarding tables at run time by using P4 forwarding plane code is only support on specific targets, Bmv2 is not one of those targets!).
+
+In the following example the P4 device will receive IPv6 packets and either route them locally or forward to another P4 device which has a route to the destination subnet. Both devices are capable of responding to ND solicitations for their own interface IPs, as well as soliciting for IPs of devices on locally connected subnets. This requires a control-plane app to transmit ND solicitations and update the adjacency table when a ND advertisement is received.
+
+```shell
+# Set up the topology and start the P4 switch running
+docker compose exec p4 /examples/l3_fwd/init.sh
+
+# In another terminal, start the control-plane
+docker compose exec p4 /examples/l3_fwd/control_plane.py
+
+# Optional, see packet counters on P4 device:
+docker compose exec p4 /examples/l3_fwd/control_plane.py --counters
+
+# Optional, tcpdump to verify
+docker compose exec p4 tcpdump -nnlASXevv -s 0 -i l2_r1
+
+# In another terminal, ping between the two interfaces in the same IP subnet, with the P4 switch providing L2 forwarding between the interfaces
+docker compose exec p4 ip netns exec l2_0 ping -c 1 10.0.0.4
+docker compose exec p4 ip netns exec l2_1 ping -c 1 10.0.0.1
+# docker compose exec p4 ip netns exec l2_0 ip nei del 10.0.0.4 dev l2_0
+# docker compose exec p4 ip netns exec l2_1 ip nei del 10.0.0.1 dev l2_1
+
+# Optional, inspect the switch tables manually
+docker compose exec p4 simple_switch_CLI
+
+# Clean up
+docker compose exec p4 /examples/clean_up.sh
+```
