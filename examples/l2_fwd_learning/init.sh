@@ -43,7 +43,7 @@
 set -e
 set -u
 
-if [ ! "$(ip netns ls | awk '{print $1}' | tr '\n' ' ')" == "l2_0 l2_1 " ]
+if [ ! "$(ip netns ls | awk '{print $1}' | sort | tr '\n' ' ')" == "l2_0 l2_1 " ]
 then
     ip netns add l2_0
     ip netns add l2_1
