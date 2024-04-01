@@ -271,7 +271,7 @@ control IngressProcess(inout headers hdr,
         }
     }
 
-    /* Define a table to store srouce MAC addresses. */
+    /* Define a table to store source MAC addresses. */
     table src_macs {
         /*
           Set of header fields used in the table lookup.
