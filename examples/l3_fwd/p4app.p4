@@ -248,7 +248,7 @@ control IngressProcess(inout headers hdr,
         - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
         - - If result is 0, dest IP is directly attached, lookup adj for dest IP
         */
-        if (ipv6_routes.apply().hit()) {
+        if (ipv6_routes.apply().hit) {
             ipv6_adj.apply();
         }
     }
@@ -263,7 +263,7 @@ control EgressProcess(inout headers hdr,
         if (standard_metadata.instance_type == 1){
             // Re-write the packet to be an ICMPv6 nei disc solicit packet.
             /*
-            hdr.etherne.dstMac= 
+            hdr.etherne.dstMac =
             hdr.etherne.srcMac = 
             hdr.etherne.etherType = 
             hdr.ipv6.version = 
@@ -277,9 +277,9 @@ control EgressProcess(inout headers hdr,
             hdr.icmpv6.type = 
             hdr.icmpv6.code = 
             hdr.icmpv6.checksum =
-            */ 
+            */
             truncate((bit<32>)14); // Size in bytes
-            log_msg("Going to send frame with source MAC {}", {hdr.ethernet.srcAddr});
+            log_msg("Going to send frame with source MAC {}", {hdr.ethernet.srcMac});
         } else {
                 egressPackets.count((bit<32>)standard_metadata.egress_spec);
         }
