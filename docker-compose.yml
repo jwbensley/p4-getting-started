@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   p4:
     container_name: p4
