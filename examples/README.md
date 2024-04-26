@@ -14,6 +14,14 @@ To clear up just tear down the container again:
 docker compose down
 ```
 
+Install the requirements in a virtual-env if you want to edit the examples locally in your IDE:
+
+```shell
+python3 -m venv --without-pip .venv
+source .venv/bin/activate
+pip install -r examples/requirements.txt
+```
+
 ## l2_fwd_static
 
 Perform a MAC look-up and forward packets out of the interface which matches the entry in the MAC table.
