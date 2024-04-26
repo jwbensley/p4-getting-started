@@ -89,4 +89,4 @@ table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:01 => 0
 table_add MyIngress.mac_addresses MyIngress.l2_forward 00:00:00:00:00:04 => 1
 table_add MyIngress.mac_addresses MyIngress.l2_forward FF:FF:FF:FF:FF:FF => 1
 EOF
-read
+read -r
