@@ -9,7 +9,6 @@ header ethernet_t {
     MacAddr_t    dstMac;
     MacAddr_t    srcMac;
     bit<16>      etherType;
-    // varbit<1500> payload; // Only needed for Ethernet checksum
 }
 
 const bit<16> ETHERTYPE_IPV6  = 0x86dd;
@@ -146,14 +145,7 @@ control IngressProcess(inout headers hdr,
         to signal to the control-plane that this digest message only contains
         a IPv6 address. In this case it is the IP to send a nei disc request to.
         */
-        //digest<digest_t>(0, {0, 511, hdr.ipv6.dstAddr});
-
-        /*
-        This will also set standard_metadata.instance_type to 1 on the cloned
-        packet, so that it can be distinguished from the orginal packet at egress.
-        */
-        //standard_metadata.egress_spec = meta.egress_port
-        clone_preserving_field_list(CloneType.I2E, (bit<32>)meta.egress_port, 0);
+        digest<digest_t>(0, {0, 511, hdr.ipv6.dstAddr});
     }
 
     action recv_nei_adv() {
@@ -248,9 +240,11 @@ control IngressProcess(inout headers hdr,
         - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
         - - If result is 0, dest IP is directly attached, lookup adj for dest IP
         */
+        //if (hdr.ipv6.isValid()){
         if (ipv6_routes.apply().hit) {
             ipv6_adj.apply();
         }
+        //}
     }
 
 }
@@ -259,30 +253,7 @@ control EgressProcess(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
     apply {
-        // If this is a cloned packet:
-        if (standard_metadata.instance_type == 1){
-            // Re-write the packet to be an ICMPv6 nei disc solicit packet.
-            /*
-            hdr.etherne.dstMac =
-            hdr.etherne.srcMac = 
-            hdr.etherne.etherType = 
-            hdr.ipv6.version = 
-            hdr.ipv6.traffic_class = 
-            hdr.ipv6.flow_label = 
-            hdr.ipv6.payload_length = 
-            hdr.ipv6.next_header = 
-            hdr.ipv6.hop_limit = 
-            hdr.ipv6.srcAddr = 
-            hdr.ipv6.dstAddr = 
-            hdr.icmpv6.type = 
-            hdr.icmpv6.code = 
-            hdr.icmpv6.checksum =
-            */
-            truncate((bit<32>)14); // Size in bytes
-            log_msg("Going to send frame with source MAC {}", {hdr.ethernet.srcMac});
-        } else {
-                egressPackets.count((bit<32>)standard_metadata.egress_spec);
-        }
+        egressPackets.count((bit<32>)standard_metadata.egress_spec);
     }
 }
 

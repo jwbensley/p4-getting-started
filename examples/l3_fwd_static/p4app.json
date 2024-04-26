@@ -4,16 +4,17 @@
       "name" : "scalars_0",
       "id" : 0,
       "fields" : [
-        ["tmp", 32, false],
-        ["tmp_0", 48, false],
-        ["tmp_1", 9, false],
-        ["tmp_2", 128, false],
-        ["tmp_3", 32, false],
-        ["tmp_4", 48, false],
+        ["tmp", 48, false],
+        ["tmp_0", 9, false],
+        ["tmp_1", 128, false],
+        ["tmp_2", 48, false],
+        ["tmp_3", 9, false],
+        ["tmp_4", 128, false],
         ["tmp_5", 32, false],
+        ["tmp_6", 32, false],
         ["metadata.adj_key", 128, false],
         ["metadata.egress_port", 9, false],
-        ["_padding_0", 6, false]
+        ["_padding_0", 5, false]
       ]
     },
     {
@@ -113,13 +114,7 @@
   "header_union_types" : [],
   "header_unions" : [],
   "header_union_stacks" : [],
-  "field_lists" : [
-    {
-      "id" : 1,
-      "name" : "empty",
-      "elements" : []
-    }
-  ],
+  "field_lists" : [],
   "errors" : [
     ["NoError", 0],
     ["PacketTooShort", 1],
@@ -265,7 +260,7 @@
                   ],
                   "source_info" : {
                     "filename" : "./p4app.p4",
-                    "line" : 100,
+                    "line" : 99,
                     "column" : 8,
                     "source_fragment" : "        log_msg(\\\"Dropping non-IPv6 payload frame\\\");"
                   }
@@ -294,7 +289,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "./p4app.p4",
-        "line" : 298,
+        "line" : 267,
         "column" : 8,
         "source_fragment" : "EgressDeparser"
       },
@@ -309,7 +304,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "./p4app.p4",
-        "line" : 60,
+        "line" : 59,
         "column" : 34,
         "source_fragment" : "ingressPackets"
       },
@@ -321,7 +316,7 @@
       "id" : 1,
       "source_info" : {
         "filename" : "./p4app.p4",
-        "line" : 61,
+        "line" : 60,
         "column" : 34,
         "source_fragment" : "egressPackets"
       },
@@ -338,15 +333,33 @@
       "elements" : [
         {
           "type" : "field",
+          "value" : ["scalars", "tmp"]
+        },
+        {
+          "type" : "field",
           "value" : ["scalars", "tmp_0"]
         },
         {
           "type" : "field",
           "value" : ["scalars", "tmp_1"]
-        },
+        }
+      ]
+    },
+    {
+      "id" : 2,
+      "name" : "digest_t",
+      "elements" : [
         {
           "type" : "field",
           "value" : ["scalars", "tmp_2"]
+        },
+        {
+          "type" : "field",
+          "value" : ["scalars", "tmp_3"]
+        },
+        {
+          "type" : "field",
+          "value" : ["scalars", "tmp_4"]
         }
       ]
     }
@@ -367,7 +380,7 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 140,
+            "line" : 139,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
           }
@@ -387,56 +400,17 @@
               "value" : ["scalars", "tmp"]
             },
             {
-              "type" : "expression",
-              "value" : {
-                "type" : "expression",
-                "value" : {
-                  "op" : "&",
-                  "left" : {
-                    "type" : "field",
-                    "value" : ["scalars", "metadata.egress_port"]
-                  },
-                  "right" : {
-                    "type" : "hexstr",
-                    "value" : "0xffffffff"
-                  }
-                }
-              }
+              "type" : "hexstr",
+              "value" : "0x000000000000"
             }
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 156,
-            "column" : 51,
-            "source_fragment" : "(bit<32>)meta.egress_port"
+            "line" : 148,
+            "column" : 29,
+            "source_fragment" : "0"
           }
         },
-        {
-          "op" : "clone_ingress_pkt_to_egress",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["scalars", "tmp"]
-            },
-            {
-              "type" : "hexstr",
-              "value" : "0x1"
-            }
-          ],
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 156,
-            "column" : 8,
-            "source_fragment" : "clone_preserving_field_list(CloneType.I2E, (bit<32>)meta.egress_port, 0)"
-          }
-        }
-      ]
-    },
-    {
-      "name" : "IngressProcess.recv_nei_adv",
-      "id" : 2,
-      "runtime_data" : [],
-      "primitives" : [
         {
           "op" : "assign",
           "parameters" : [
@@ -445,15 +419,15 @@
               "value" : ["scalars", "tmp_0"]
             },
             {
-              "type" : "field",
-              "value" : ["ethernet", "srcMac"]
+              "type" : "hexstr",
+              "value" : "0x01ff"
             }
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 168,
-            "column" : 29,
-            "source_fragment" : "hdr.ethernet.srcMac"
+            "line" : 148,
+            "column" : 32,
+            "source_fragment" : "511"
           }
         },
         {
@@ -465,33 +439,14 @@
             },
             {
               "type" : "field",
-              "value" : ["standard_metadata", "ingress_port"]
+              "value" : ["ipv6", "dstAddr"]
             }
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 168,
-            "column" : 50,
-            "source_fragment" : "standard_metadata.ingress_port"
-          }
-        },
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["scalars", "tmp_2"]
-            },
-            {
-              "type" : "field",
-              "value" : ["ipv6", "srcAddr"]
-            }
-          ],
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 168,
-            "column" : 82,
-            "source_fragment" : "hdr.ipv6.srcAddr"
+            "line" : 148,
+            "column" : 37,
+            "source_fragment" : "hdr.ipv6.dstAddr"
           }
         },
         {
@@ -508,7 +463,90 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 168,
+            "line" : 148,
+            "column" : 8,
+            "source_fragment" : "digest<digest_t>(0, {0, 511, hdr.ipv6.dstAddr})"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "IngressProcess.recv_nei_adv",
+      "id" : 2,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_2"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ethernet", "srcMac"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "./p4app.p4",
+            "line" : 160,
+            "column" : 29,
+            "source_fragment" : "hdr.ethernet.srcMac"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_3"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "ingress_port"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "./p4app.p4",
+            "line" : 160,
+            "column" : 50,
+            "source_fragment" : "standard_metadata.ingress_port"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_4"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ipv6", "srcAddr"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "./p4app.p4",
+            "line" : 160,
+            "column" : 82,
+            "source_fragment" : "hdr.ipv6.srcAddr"
+          }
+        },
+        {
+          "op" : "generate_digest",
+          "parameters" : [
+            {
+              "type" : "hexstr",
+              "value" : "0x00000000"
+            },
+            {
+              "type" : "hexstr",
+              "value" : "0x2"
+            }
+          ],
+          "source_info" : {
+            "filename" : "./p4app.p4",
+            "line" : 160,
             "column" : 8,
             "source_fragment" : "digest<digest_t>(0, {hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr})"
           }
@@ -683,7 +721,7 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 181,
+            "line" : 173,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = egress_port"
           }
@@ -702,7 +740,7 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 182,
+            "line" : 174,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.dstMac = dstMac"
           }
@@ -721,7 +759,7 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 183,
+            "line" : 175,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.srcMac = srcMac"
           }
@@ -729,7 +767,7 @@
       ]
     },
     {
-      "name" : "p4app242",
+      "name" : "p4app234",
       "id" : 5,
       "runtime_data" : [],
       "primitives" : [
@@ -738,7 +776,7 @@
           "parameters" : [],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 242,
+            "line" : 234,
             "column" : 12,
             "source_fragment" : "exit"
           }
@@ -746,7 +784,7 @@
       ]
     },
     {
-      "name" : "p4app231",
+      "name" : "p4app223",
       "id" : 6,
       "runtime_data" : [],
       "primitives" : [
@@ -755,7 +793,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_3"]
+              "value" : ["scalars", "tmp_5"]
             },
             {
               "type" : "expression",
@@ -777,7 +815,7 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 231,
+            "line" : 223,
             "column" : 29,
             "source_fragment" : "(bit<32>)standard_metadata.ingress_port"
           }
@@ -791,12 +829,12 @@
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_3"]
+              "value" : ["scalars", "tmp_5"]
             }
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 231,
+            "line" : 223,
             "column" : 8,
             "source_fragment" : "ingressPackets.count((bit<32>)standard_metadata.ingress_port)"
           }
@@ -804,81 +842,16 @@
       ]
     },
     {
-      "name" : "p4app281",
+      "name" : "p4app254",
       "id" : 7,
       "runtime_data" : [],
       "primitives" : [
         {
-          "op" : "truncate",
-          "parameters" : [
-            {
-              "type" : "hexstr",
-              "value" : "0x0000000e"
-            }
-          ],
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 281,
-            "column" : 12,
-            "source_fragment" : "truncate((bit<32>)14)"
-          }
-        },
-        {
           "op" : "assign",
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_4"]
-            },
-            {
-              "type" : "field",
-              "value" : ["ethernet", "srcMac"]
-            }
-          ],
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 282,
-            "column" : 63,
-            "source_fragment" : "            log_msg(\\\"Going to send frame with source MAC {}\\\", {hdr.ethernet.srcMac});"
-          }
-        },
-        {
-          "op" : "log_msg",
-          "parameters" : [
-            {
-              "type" : "string",
-              "value" : "Going to send frame with source MAC {}"
-            },
-            {
-              "type" : "parameters_vector",
-              "value" : [
-                {
-                  "type" : "field",
-                  "value" : ["scalars", "tmp_4"]
-                }
-              ]
-            }
-          ],
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 282,
-            "column" : 12,
-            "source_fragment" : "            log_msg(\\\"Going to send frame with source MAC {}\\\", {hdr.ethernet.srcMac});"
-          }
-        }
-      ]
-    },
-    {
-      "name" : "p4app284",
-      "id" : 8,
-      "runtime_data" : [],
-      "primitives" : [
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["scalars", "tmp_5"]
+              "value" : ["scalars", "tmp_6"]
             },
             {
               "type" : "expression",
@@ -900,8 +873,8 @@
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 284,
-            "column" : 36,
+            "line" : 254,
+            "column" : 28,
             "source_fragment" : "(bit<32>)standard_metadata.egress_spec"
           }
         },
@@ -914,13 +887,13 @@
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_5"]
+              "value" : ["scalars", "tmp_6"]
             }
           ],
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 284,
-            "column" : 16,
+            "line" : 254,
+            "column" : 8,
             "source_fragment" : "egressPackets.count((bit<32>)standard_metadata.egress_spec)"
           }
         }
@@ -933,18 +906,18 @@
       "id" : 0,
       "source_info" : {
         "filename" : "./p4app.p4",
-        "line" : 131,
+        "line" : 130,
         "column" : 8,
         "source_fragment" : "IngressProcess"
       },
-      "init_table" : "tbl_p4app231",
+      "init_table" : "tbl_p4app223",
       "tables" : [
         {
-          "name" : "tbl_p4app231",
+          "name" : "tbl_p4app223",
           "id" : 0,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 231,
+            "line" : 223,
             "column" : 8,
             "source_fragment" : "ingressPackets.count((bit<32>)standard_metadata.ingress_port)"
           },
@@ -956,10 +929,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [6],
-          "actions" : ["p4app231"],
+          "actions" : ["p4app223"],
           "base_default_next" : "node_3",
           "next_tables" : {
-            "p4app231" : "node_3"
+            "p4app223" : "node_3"
           },
           "default_entry" : {
             "action_id" : 6,
@@ -973,7 +946,7 @@
           "id" : 1,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 241,
+            "line" : 233,
             "column" : 12,
             "source_fragment" : "recv_nei_adv()"
           },
@@ -986,9 +959,9 @@
           "direct_meters" : null,
           "action_ids" : [2],
           "actions" : ["IngressProcess.recv_nei_adv"],
-          "base_default_next" : "tbl_p4app242",
+          "base_default_next" : "tbl_p4app234",
           "next_tables" : {
-            "IngressProcess.recv_nei_adv" : "tbl_p4app242"
+            "IngressProcess.recv_nei_adv" : "tbl_p4app234"
           },
           "default_entry" : {
             "action_id" : 2,
@@ -998,11 +971,11 @@
           }
         },
         {
-          "name" : "tbl_p4app242",
+          "name" : "tbl_p4app234",
           "id" : 2,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 242,
+            "line" : 234,
             "column" : 12,
             "source_fragment" : "exit"
           },
@@ -1014,10 +987,10 @@
           "support_timeout" : false,
           "direct_meters" : null,
           "action_ids" : [5],
-          "actions" : ["p4app242"],
+          "actions" : ["p4app234"],
           "base_default_next" : "IngressProcess.ipv6_routes",
           "next_tables" : {
-            "p4app242" : "IngressProcess.ipv6_routes"
+            "p4app234" : "IngressProcess.ipv6_routes"
           },
           "default_entry" : {
             "action_id" : 5,
@@ -1031,7 +1004,7 @@
           "id" : 3,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 197,
+            "line" : 189,
             "column" : 10,
             "source_fragment" : "ipv6_routes"
           },
@@ -1068,7 +1041,7 @@
           "id" : 4,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 218,
+            "line" : 210,
             "column" : 10,
             "source_fragment" : "ipv6_adj"
           },
@@ -1108,7 +1081,7 @@
           "id" : 0,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 238,
+            "line" : 230,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV && ..."
           },
@@ -1156,48 +1129,19 @@
       "id" : 1,
       "source_info" : {
         "filename" : "./p4app.p4",
-        "line" : 258,
+        "line" : 250,
         "column" : 8,
         "source_fragment" : "EgressProcess"
       },
-      "init_table" : "node_10",
+      "init_table" : "tbl_p4app254",
       "tables" : [
         {
-          "name" : "tbl_p4app281",
+          "name" : "tbl_p4app254",
           "id" : 5,
           "source_info" : {
             "filename" : "./p4app.p4",
-            "line" : 281,
-            "column" : 12,
-            "source_fragment" : "truncate((bit<32>)14); // Size in bytes ..."
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [7],
-          "actions" : ["p4app281"],
-          "base_default_next" : null,
-          "next_tables" : {
-            "p4app281" : null
-          },
-          "default_entry" : {
-            "action_id" : 7,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_p4app284",
-          "id" : 6,
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 284,
-            "column" : 16,
+            "line" : 254,
+            "column" : 8,
             "source_fragment" : "egressPackets.count((bit<32>)standard_metadata.egress_spec)"
           },
           "key" : [],
@@ -1207,14 +1151,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [8],
-          "actions" : ["p4app284"],
+          "action_ids" : [7],
+          "actions" : ["p4app254"],
           "base_default_next" : null,
           "next_tables" : {
-            "p4app284" : null
+            "p4app254" : null
           },
           "default_entry" : {
-            "action_id" : 8,
+            "action_id" : 7,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1222,34 +1166,7 @@
         }
       ],
       "action_profiles" : [],
-      "conditionals" : [
-        {
-          "name" : "node_10",
-          "id" : 1,
-          "source_info" : {
-            "filename" : "./p4app.p4",
-            "line" : 263,
-            "column" : 12,
-            "source_fragment" : "standard_metadata.instance_type == 1"
-          },
-          "expression" : {
-            "type" : "expression",
-            "value" : {
-              "op" : "==",
-              "left" : {
-                "type" : "field",
-                "value" : ["standard_metadata", "instance_type"]
-              },
-              "right" : {
-                "type" : "hexstr",
-                "value" : "0x00000001"
-              }
-            }
-          },
-          "true_next" : "tbl_p4app281",
-          "false_next" : "tbl_p4app284"
-        }
-      ]
+      "conditionals" : []
     }
   ],
   "checksums" : [],

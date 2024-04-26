@@ -9,6 +9,10 @@ import sys
 import time
 from typing import Any
 from p4utils.utils.sswitch_thrift_API import SimpleSwitchThriftAPI
+from scapy.data import ETH_P_IPV6
+from scapy.layers.l2 import Ether  # type: ignore
+from scapy.layers.inet6 import IPv6, ICMPv6ND_NS  # type: ignore
+from scapy.sendrecv import sendp  # type: ignore
 
 class Settings:
     ACTION_SET_ADJ = "set_adj"
@@ -16,6 +20,7 @@ class Settings:
     CONTROLLER: SimpleSwitchThriftAPI
     COUNTER_INGRESS = "ingressPackets"
     COUNTER_EGRESS = "egressPackets"
+    CPU_INJECT_INTT = "cpu" # Linux interface control-plane inject packets are sent on
     LOGGING_FORMAT = "%(asctime)s|%(levelname)s|%(process)d|%(funcName)s|%(message)s"
     READ_COUNTERS = False
     SWITCH = 0 # Default switch the contron plane connects to, 0-indexed
@@ -53,7 +58,7 @@ class Settings:
     TABLE_ROUTES="ipv6_routes"
     TABLE_ADJ="ipv6_adj"
     THRIFT_PORT = "909" # Switch ID is appended to this
-    THRIFT_IP = "localhost"
+    THRIFT_IP = "127.0.0.1"
 
 logging.basicConfig(
     format=Settings.LOGGING_FORMAT,
@@ -63,21 +68,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-def find_egr_port(ipv6_addr: ipaddress.IPv6Address) -> int:
-    for port_id, port_config in Settings.SWITCH_PORTS[Settings.SWITCH].items():
-        if ipv6_addr in ipaddress.ip_network(port_config["subnet"]):
-            logger.info(f"Returning port ID {port_id} for IP address {ipv6_addr}")
-            return port_id
-    else:
-        """
-        The forwarding plane should drop packets to unknown destination IPs.
-        This means this function should never be called for an unknown dest IP.
-        If there is a chance the forwarding plane and control plane routing tables
-        can be out of sync, this check needs to be made in the control plane too.
-        """
-        logger.error(f"No local subnet found for IP address {ipv6_addr}")
-    return -1
 
 def learn_via_digest_loop() -> None:
     logger.info(f"Going to listen for CPU digest messages")
@@ -129,7 +119,7 @@ def learn_via_digest_loop() -> None:
                 starting_index += 2
                 ip = int.from_bytes(msg[starting_index:starting_index+8], "big")
                 starting_index += 8
-                ipv6_addr = ipaddress.ip_address(ip)
+                ipv6_addr = str(ipaddress.ip_address(ip))
 
                 logger.info(f"Digest message {idx} contains src_mac: {src_mac}, ingress_port: {ingress_port}, ip: {ipv6_addr}")
                 if src_mac == 0 and ingress_port == 511:
@@ -171,29 +161,65 @@ def parse_args() ->  dict[str, Any]:
 
     return args
 
+def port_id_from_ip(ipv6_addr: str) -> int:
+    for port_id, port_config in Settings.SWITCH_PORTS[Settings.SWITCH].items():
+        if ipv6_addr in ipaddress.ip_network(port_config["subnet"]):
+            logger.info(f"Returning port ID {port_id} for IP address {ipv6_addr}")
+            return port_id
+    else:
+        """
+        The forwarding plane should drop packets to unknown destination IPs.
+        This means this function should never be called for an unknown dest IP.
+        If there is a chance the forwarding plane and control plane routing tables
+        can be out of sync, this check needs to be made in the control plane too.
+        """
+        logger.error(f"No local subnet found for IP address {ipv6_addr}")
+    return -1
+
+def port_ip_from_id(port_id: int) -> str:
+    return Settings.SWITCH_PORTS[Settings.SWITCH][port_id]["ip"]
+
+def port_mac_from_id(port_id: int) -> str:
+    return Settings.SWITCH_PORTS[Settings.SWITCH][port_id]["mac"]
+
+def port_subnet_from_id(port_id: int) -> str:
+    return Settings.SWITCH_PORTS[Settings.SWITCH][port_id]["subnet"]
+
 def populate_tables() -> None:
     """
     Add the local subnets and egress interface ID, the switch is directly
     connected to, to the IPv6 RIB
     """
-    ports = Settings.SWITCH_PORTS[Settings.SWITCH]
-    for port_id in ports.keys():
-        ip = ports[port_id]["subnet"]
-        subnet = ports[port_id]["subnet"]
-        # Insert local subnet -> (next_hop_ip(0), egress_port_id(port_id))
-        Settings.CONTROLLER.table_add(table_name=Settings.TABLE_ROUTES, action_name=Settings.ACTION_SET_ADJ, match_keys=[subnet], action_params=[0, port_id])
-        logger.info(f"Added local subnet {subnet} to switch {Settings.SWITCH} port {port_id}")
+    for port_id in Settings.SWITCH_PORTS[Settings.SWITCH].keys():
+        # For some mad reason we have to provide the IPv6 prefix as a decimal integer with CIDR mask, as a string :D
+        subnet = port_subnet_from_id(port_id)
+        ip = port_ip_from_id(port_id)
+        prefix = str(int(ipaddress.ip_address(ip))) + "/" + subnet.split("/")[-1]
 
-def process_nei_disc_adv(src_mac: int, ingress_port: int, ipv6_addr: ipaddress.IPv6Address) -> None:
+        # Insert local subnet -> (next_hop_ip(0), egress_port_id(port_id))
+        logger.info(f"Addeding local subnet {prefix} to switch {Settings.SWITCH} via port {port_id}")
+        Settings.CONTROLLER.table_add(table_name=Settings.TABLE_ROUTES, action_name=Settings.ACTION_SET_ADJ, match_keys=[prefix], action_params=["0", str(port_id)])
+
+def process_nei_disc_adv(src_mac: int, ingress_port: int, ipv6_addr: str) -> None:
     ...
 
-def send_nei_disc_sol(ipv6_addr: ipaddress.IPv6Address) -> None:
-    egr_port_id = find_egr_port(ipv6_addr)
+def send_nei_disc_sol(ipv6_addr: str) -> None:
+    last_32_bits = hex(int(ipv6_addr) & 0xffffffff).strip("0x")
 
+    egr_port_id = port_id_from_ip(ipv6_addr)
     if egr_port_id == -1:
         logger.error(f"Unable to send neighbor solicitation to {ipv6_addr}, no local subnet")
         return
 
+    src_mac = port_mac_from_id(egr_port_id)
+    dst_mac = "33:33:"  +  last_32_bits[0:2] + ":" + last_32_bits[2:4] + ":" + last_32_bits[4:6] + ":" + last_32_bits[6:8]
+
+    src_ip = port_ip_from_id(egr_port_id)
+    dst_ip = "ff02::1:ff" + last_32_bits[2:4] + ":" + last_32_bits[4:8]
+
+    pkt = Ether(dst=dst_mac, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip) / ICMPv6ND_NS(tgt="")
+    logger.info(f"Injecting packet: {pkt}")
+    sendp(pkt, iface=Settings.CPU_INJECT_INTT)
 
 def read_counters() -> None:
     for port_id in Settings.SWITCH_PORTS:

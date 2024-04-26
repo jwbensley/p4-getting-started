@@ -23,7 +23,10 @@
 # |┌────────┴──────────┐ |   - │ intf: isl1        │ -      -------------------------
 # |│ intf: 2           | |   - │                   │ -
 # |│ fd:0:0:ff::1/64   ├─|───-─┤ 00:00:00:00:FF:01 │ -
-# |└───────────────────┘ |   - └────────┬──────────┘ -
+# |└────────┬──────────┘ |   - └────────┬──────────┘ -
+# |┌────────┴──────────┐ |   -          |            -
+# |│ intf: 100 -> CPU  | |   -          |            -
+# |└───────────────────┘ |   -          |            -
 # |----------------------|   -          |            -
 #                            -          |            -
 #   Software Switch 2        -          |            -
@@ -40,6 +43,9 @@
 # |└────────┬──────────┘ |   - └───────────────────┘ -      - └───────────────────┘ -
 # |┌────────┴──────────┐ |   -------------------------      -------------------------
 # |│ intf: 2           │ |
+# |└────────┬──────────┘ |
+# |┌────────┴──────────┐ |
+# |│ intf: 100 -> CPU  | |
 # |└───────────────────┘ |
 # |----------------------|
 
@@ -101,6 +107,15 @@ then
     ip addr flush dev isl2
     sysctl -w net.ipv6.conf.isl2.disable_ipv6=1
 
+    # For CPU injected frames
+    ip link add cpu type veth peer name cpu_0
+    ip addr flush dev cpu
+    ip addr flush dev cpu_0
+    sysctl -w net.ipv6.conf.cpu.disable_ipv6=1
+    sysctl -w net.ipv6.conf.cpu_0.disable_ipv6=1
+    ip link set up dev cpu
+    ip link set up dev cpu_0
+
     ip netns exec l3_0 ip a
     ip netns exec l3_0 ip r
     echo ""
@@ -117,7 +132,4 @@ fi
 
 SCRIPT_DIR=$(dirname "$0")
 p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
-# ^ this is basically the same as:
-# p4c-bm2-ss --target bmv2 --arch v1model --std p4-16 -o "${SCRIPT_DIR}/p4app.p4i" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
-simple_switch --thrift-port 9090 -i 0@l3_r0 -i 1@l3_r1 -i 2@isl1 -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
-#simple_switch --thrift-port 9091 -i 0@l3_r0 -i 1@l3_r1 -i 2@isl1 -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
+simple_switch --thrift-port 9090 -i 0@l3_r0 -i 1@l3_r1 -i 2@isl1 -i 100@cpu -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
