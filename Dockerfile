@@ -3,7 +3,9 @@
 FROM ubuntu:22.04
 
 RUN apt-get update && \
-DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y gnupg2 wget ca-certificates git python3-pip inetutils-ping tcpdump
+DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y gnupg2 wget ca-certificates git python3-pip inetutils-ping tcpdump && \
+apt-get clean && \
+rm -rf /var/lib/apt/lists/*
 
 RUN wget -nv https://download.opensuse.org/repositories/home:/p4lang/xUbuntu_22.04/Release.key -O Release.key && \
 apt-key add - < Release.key
