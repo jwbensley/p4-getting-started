@@ -11,11 +11,12 @@ from typing import Any
 from p4utils.utils.sswitch_thrift_API import SimpleSwitchThriftAPI
 from scapy.data import ETH_P_IPV6
 from scapy.layers.l2 import Ether  # type: ignore
-from scapy.layers.inet6 import IPv6, ICMPv6ND_NS  # type: ignore
+from scapy.layers.inet6 import IPv6, ICMPv6ND_NA, ICMPv6ND_NS  # type: ignore
 from scapy.sendrecv import sendp  # type: ignore
 
 class Settings:
     ACTION_SET_ADJ = "set_adj"
+    ACTION_SET_EGR_PORT = "set_egress_port"
     ACTION_SET_NEXT_HOP = "set_next_hop"
     CONTROLLER: SimpleSwitchThriftAPI
     COUNTER_INGRESS = "ingressPackets"
@@ -55,8 +56,12 @@ class Settings:
             },
         }
     }
-    TABLE_ROUTES="ipv6_routes"
+    T_SEND_NEI_SOL = 0 # Types of CPU punted messages
+    T_RECV_NEI_ADV = 1
+    T_RECV_NEI_SOL = 2
     TABLE_ADJ="ipv6_adj"
+    TABLE_LOCAL="local_subnets"
+    TABLE_ROUTES="ipv6_routes"
     THRIFT_PORT = "909" # Switch ID is appended to this
     THRIFT_IP = "127.0.0.1"
 
@@ -69,8 +74,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def add_adj(src_mac: int, egress_port: int, src_ip: int) -> None:
+    """
+    Add a neighbour IP + MAC via a specific egress port
+    """
+    local_mac = port_mac_from_id(egress_port)
+    mac_int = int("".join(local_mac.split(":")), 16)
+    ip = ipaddress.ip_address(src_ip)
+    logger.info(f"Adding adjacency entry for {ip} ({src_ip}) via {src_mac} on port {egress_port}")
+    Settings.CONTROLLER.table_add(
+        table_name=Settings.TABLE_ADJ, action_name=Settings.ACTION_SET_NEXT_HOP, match_keys=[src_ip],
+        action_params=[str(egress_port), str(src_mac), str(mac_int)]
+    )
+
 def learn_via_digest_loop() -> None:
-    logger.info(f"Going to listen for CPU digest messages")
     """
     Settings.CONTROLLER.client has type "bm_runtime.standard.Standard.Client"
     Settings.CONTROLLER.client.bm_mgmt_get_info() returns type "bm_runtime.standard.ttypes.BmConfig".
@@ -113,21 +130,40 @@ def learn_via_digest_loop() -> None:
                 unpack() can't unpack on boundtries like 6 bytes, so we'll have
                 to do it manually.
                 """
+                msg_type = int.from_bytes(msg[starting_index:starting_index+1], "big")
+                starting_index += 1
                 src_mac = int.from_bytes(msg[starting_index:starting_index+6], "big")
                 starting_index += 6
                 ingress_port = int.from_bytes(msg[starting_index:starting_index+2], "big")
                 starting_index += 2
-                ip = int.from_bytes(msg[starting_index:starting_index+8], "big")
-                starting_index += 8
-                ipv6_addr = str(ipaddress.ip_address(ip))
+                ip = int.from_bytes(msg[starting_index:starting_index+16], "big")
+                starting_index += 16
+                ####ipv6_addr = str(ipaddress.ip_address(ip))
 
-                logger.info(f"Digest message {idx} contains src_mac: {src_mac}, ingress_port: {ingress_port}, ip: {ipv6_addr}")
-                if src_mac == 0 and ingress_port == 511:
-                    logger.info(f"Going to send neighbour discovery solicitation")
-                    send_nei_disc_sol(ipv6_addr)
+                logger.info(f"Digest message {idx} contains type: {msg_type}, "
+                            f"src_mac: {src_mac}, ingress_port: {ingress_port}, "
+                            f"ip: {ip}"
+                )
+
+                if msg_type == Settings.T_RECV_NEI_SOL:
+                    """
+                    Store the neighbor details from which the request came from.
+                    Then send a neig disc adv in response.
+                    """
+                    add_adj(src_mac=src_mac, egress_port=ingress_port, src_ip=ip)
+                    send_nei_disc_adv(dst_mac=src_mac, dst_ip=ip, egress_port=ingress_port)
+
+                elif msg_type == Settings.T_RECV_NEI_ADV:
+                    """
+                    Store the neighbor details from the received neig disc adv.
+                    """
+                    add_adj(src_mac=src_mac, egress_port=ingress_port, src_ip=ip)
+
+                elif msg_type == Settings.T_SEND_NEI_SOL:
+                    send_nei_disc_sol(ip)
+
                 else:
-                    logger.info(f"Going to process neighbour discovery advertisement")
-                    process_nei_disc_adv(src_mac, ingress_port, ipv6_addr)
+                    raise ValueError(f"Unknown message digest type {msg_type}")
 
             # Acknowledge digest
             Settings.CONTROLLER.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
@@ -187,23 +223,49 @@ def port_subnet_from_id(port_id: int) -> str:
 
 def populate_tables() -> None:
     """
+    Add the locally connnected subnets as IPv6 routes.
+    Add the local interface IPs and associated port IDs for CPU injected packets.
+    Add the nei disc solicit destination address to match received NDP solicit messages.
+    """
+    logger.info(f"Populating tables on switch {Settings.SWITCH}")
+    for port_id in Settings.SWITCH_PORTS[Settings.SWITCH].keys():
+        # For some mad reason we have to provide IPv6 prefixes as a decimal integers with CIDR mask, as a string :D
+        subnet = port_subnet_from_id(port_id)
+        ip_cidr = port_ip_from_id(port_id)
+        ip_addr = ipaddress.ip_address(ip_cidr)
+        ip_str = str(int(ip_addr))
+        prefix = ip_str + "/" + subnet.split("/")[-1]
+
+        # Insert local subnet as -> (next_hop_ip(0), egress_port_id(port_id))
+        logger.info(f"Adding local subnet {ip_cidr} ({prefix}) as route via port {port_id}")
+        Settings.CONTROLLER.table_add(
+            table_name=Settings.TABLE_ROUTES, action_name=Settings.ACTION_SET_ADJ, match_keys=[prefix],
+            action_params=["0", str(port_id)]
+        )
+
+        # Insert local interface IP + port ID for CPU injected packets
+        logger.info(f"Adding local IP {ip_addr} ({ip_str}) to port mapping {port_id}")
+        Settings.CONTROLLER.table_add(
+            table_name=Settings.TABLE_LOCAL, action_name=Settings.ACTION_SET_EGR_PORT,
+            match_keys=[ip_str], action_params=[str(port_id)]
+        )
+
+    """
     Add the local subnets and egress interface ID, the switch is directly
     connected to, to the IPv6 RIB
     """
-    for port_id in Settings.SWITCH_PORTS[Settings.SWITCH].keys():
-        # For some mad reason we have to provide the IPv6 prefix as a decimal integer with CIDR mask, as a string :D
-        subnet = port_subnet_from_id(port_id)
-        ip = port_ip_from_id(port_id)
-        prefix = str(int(ipaddress.ip_address(ip))) + "/" + subnet.split("/")[-1]
 
-        # Insert local subnet -> (next_hop_ip(0), egress_port_id(port_id))
-        logger.info(f"Addeding local subnet {prefix} to switch {Settings.SWITCH} via port {port_id}")
-        Settings.CONTROLLER.table_add(table_name=Settings.TABLE_ROUTES, action_name=Settings.ACTION_SET_ADJ, match_keys=[prefix], action_params=["0", str(port_id)])
-
-def process_nei_disc_adv(src_mac: int, ingress_port: int, ipv6_addr: str) -> None:
-    ...
+def send_nei_disc_adv(dst_mac: str, dst_ip: str, egress_port: str) -> None:
+    logger.info(f"Going to send a neighbour discovery advertisement to {dst_mac}/{dst_ip}")
+    src_mac=port_mac_from_id(egress_port),
+    src_ip=port_ip_from_id(egress_port)
+    pkt = Ether(dst=dst_mac, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip) / ICMPv6ND_NA(tgt="")
+    logger.info(f"Injecting packet: {pkt}")
+    sendp(pkt, iface=Settings.CPU_INJECT_INTT)
 
 def send_nei_disc_sol(ipv6_addr: str) -> None:
+    logger.info(f"Going to send neighbour discovery solicitation")
+
     last_32_bits = hex(int(ipv6_addr) & 0xffffffff).strip("0x")
 
     egr_port_id = port_id_from_ip(ipv6_addr)
@@ -243,4 +305,5 @@ if __name__ == "__main__":
 
     logger.info(f"Going to populate route and adjacency tables...")
     populate_tables()
-    #learn_via_digest_loop()
+    logger.info(f"Going to listen for CPU digest messages")
+    learn_via_digest_loop()

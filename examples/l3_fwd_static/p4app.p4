@@ -30,8 +30,12 @@ header icmpv6_t {
     bit<8>   type;
     bit<8>   code;
     bit<16>  checksum;
+    bit<32>  reserved;
+    bit<128> target;
 }
 
+const bit<8> ICMPV6_TYPE_NEI_SOL = 135;
+const bit<8> ICMPV6_CODE_NEI_SOL = 0;
 const bit<8> ICMPV6_TYPE_NEI_ADV = 136;
 const bit<8> ICMPV6_CODE_NEI_ADV = 0;
 
@@ -42,7 +46,7 @@ struct headers {
 }
 
 struct metadata {
-    IpV6Addr adj_key;
+    IpV6Addr adj_ip;
     PortId_t egress_port;
 }
 
@@ -50,11 +54,18 @@ error {
     NotIpV6
 }
 
+const bit<8> T_SEND_NEI_ADV = 0;
+const bit<8> T_RECV_NEI_ADV = 1;
+const bit<8> T_RECV_NEI_SOL = 2;
+
 struct digest_t {
+    bit<8>    type;
     MacAddr_t mac;
     PortId_t  ingressPort;
     IpV6Addr  addr;
 }
+
+const bit<9> DROP_PORT = 511;
 
 counter(256, CounterType.packets) ingressPackets;
 counter(256, CounterType.packets) egressPackets;
@@ -71,6 +82,7 @@ parser IngressParser(
 
     state parse_ethernet {
         packet.extract(hdr.ethernet);
+        log_msg("Parsed Ethernet header {}", {hdr.ethernet});
         transition select (hdr.ethernet.etherType) {
             ETHERTYPE_IPV6: parse_ipv6;
             default: parse_bad;
@@ -79,6 +91,7 @@ parser IngressParser(
 
     state parse_ipv6 {
         packet.extract(hdr.ipv6);
+        log_msg("Parsed IPv6 header {}", {hdr.ipv6});
 
         transition select (hdr.ipv6.next_header) {
             IP_PROTO_ICMPV6: parse_icmpv6;
@@ -89,6 +102,7 @@ parser IngressParser(
 
     state parse_icmpv6 {
         packet.extract(hdr.icmpv6);
+        log_msg("Parsed ICMPv6 header {}", {hdr.icmpv6});
         transition accept;
     }
 
@@ -97,7 +111,11 @@ parser IngressParser(
         verify(false, error.NotIpV6);
         /* log_msg() comes from BMV2/v1model.py */
         log_msg("Dropping non-IPv6 payload frame");
-        transition reject;
+        /*
+          Explicit transition to reject not supported on BMv2.
+          If the code reaches this point we hit implicit reject anyway.
+        */
+        //transition reject;
     }
 }
 
@@ -139,33 +157,40 @@ control IngressProcess(inout headers hdr,
         mark_to_drop(standard_metadata);
     }
 
-    action send_nei_disc() {
+    action send_nei_adv() {
         /*
-        src_mac can't be 0, and ingress port can't be 511, so use these values
-        to signal to the control-plane that this digest message only contains
-        a IPv6 address. In this case it is the IP to send a nei disc request to.
+        Signal the control-plane to send send a neigh disc adv for this IP
+        address, data-plane is missing the MAC address.
         */
-        digest<digest_t>(0, {0, 511, hdr.ipv6.dstAddr});
+        digest<digest_t>(0, {T_SEND_NEI_ADV, 0, 511, hdr.ipv6.dstAddr});
+    }
+
+    action recv_nei_sol() {
+        /*
+        Signal the control-plane to process the data from a received neigh disc
+        solicit message.
+        */
+        digest<digest_t>(0, {T_RECV_NEI_SOL, hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr});
+        // Drop the packet so that it is not forwarded.
+        standard_metadata.egress_spec = DROP_PORT;
     }
 
     action recv_nei_adv() {
         /*
-        When sending a control plane message with a value src_mac, ingress port,
-        and IP addr, this combination implicitly tells the control plane this is
-        a nei disc response.
-        One could add a $message_type field to the digest message, to explicitly
-        signal the purpose of the digest message payload to the control-plane,
-        but there are many things one could do.
+        Signal the control-plane to process the data from a received neigh disc
+        adv message.
         */
-        digest<digest_t>(0, {hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr});
+        digest<digest_t>(0, {T_RECV_NEI_ADV, hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr});
+        // Drop the packet so that it is not forwarded.
+        standard_metadata.egress_spec = DROP_PORT;
     }
 
     action set_adj(IpV6Addr nextHop, PortId_t egress_port) {
         if (nextHop == 0) {
-            meta.adj_key = hdr.ipv6.dstAddr;
+            meta.adj_ip = hdr.ipv6.dstAddr;
             meta.egress_port = egress_port;
         } else {
-            meta.adj_key = nextHop;
+            meta.adj_ip = nextHop;
         }
     }
 
@@ -175,16 +200,66 @@ control IngressProcess(inout headers hdr,
         hdr.ethernet.srcMac = srcMac;
     }
 
+    action set_egress_port(PortId_t egress_port) {
+        standard_metadata.egress_spec = egress_port;
+    }
+
     /*
-        Table miss means no route to destination.
-        Table hit means route to destination.
+    Match incoming neighbour discovery solicitations.
 
-        Two types of routes are stored, those which point to a local port,
-        and those which point to a next hop.
+    Table miss means not an nei dis solic packet.
+    Table hit means nei solicit packet for "me".
 
-        Routes which point to a next-hop return the next-hop IP.
-        Routes which point to a directly attached subnet return 0.
-        In the later case, the next-hop *is* the destination IP.
+    A hit punts the packet to control-plane.
+    A miss does nothing because this wasn't an NDP solicit.
+    */
+    // table nei_solc_req {
+    //     key = {
+    //         hdr.ipv6.dstAddr: exact;
+    //     }
+    //     actions = {
+    //         recv_nei_sol;
+    //         NoAction;
+    //     }
+    //     default_action = NoAction();
+    //     size = 256;
+    // }
+
+    /*
+    Packets which are CPU injected into the data plane with have
+    a local IP, this table returns the interface ID out of which the
+    packet will be forwarded. This is because it's not possible to
+    inject a packet from control-plane into the data plane with metadata
+    such as egress port, so data-plane lookup is requirded.
+
+    Table miss means destination is not directly connected.
+    Table hit means destination is directly connect.
+
+    A hit returns the egress port ID to forward the packet out of.
+    A miss does nothing because this wasn't a CPU injected port.
+    */
+    table local_subnets {
+        key = {
+            hdr.ipv6.srcAddr: exact;
+        }
+        actions = {
+            set_egress_port;
+            NoAction;
+        }
+        default_action = NoAction();
+        size = 256;
+    }
+
+    /*
+    Table miss means no route to destination.
+    Table hit means route to destination.
+
+    Two types of routes are stored, those which point to a local port,
+    and those which point to a next hop.
+
+    Routes which point to a next-hop return the next-hop IP.
+    Routes which point to a directly attached subnet return 0.
+    In the later case, the next-hop *is* the destination IP.
     */
     table ipv6_routes {
         key = {
@@ -199,28 +274,46 @@ control IngressProcess(inout headers hdr,
     }
 
     /*
-        Adjacencies are stored as /128s.
-        Each adjacency is an egress port ID, dst MAC, and src MAC.
+    Adjacencies are stored as /128s.
+    Each adjacency is an egress port ID, dst MAC, and src MAC.
 
-        A table hit means the adjacency is known (either via a next-hop or via
-        a directly attached adj).
-        A miss means we need to send a neighbour solicitation for a directly
-        attached subnet.
+    A table hit means the adjacency is known (either via a next-hop or via
+    a directly attached adj).
+    A miss means we need to send a neighbour solicitation for a directly
+    attached subnet.
     */
     table ipv6_adj {
         key = {
-            meta.adj_key: exact;
+            meta.adj_ip: exact;
         }
         actions = {
             set_next_hop;
-            send_nei_disc;
+            send_nei_adv;
         }
-        default_action = send_nei_disc();
+        default_action = send_nei_adv();
         size = 256;
     }
 
     apply {
         ingressPackets.count((bit<32>)standard_metadata.ingress_port);
+
+        // If receiving a nei disc solic, punt to CPU, nothing further to do
+        // if ( nei_solc_req.apply().hit) {
+        //     exit;
+        // }
+
+        /*
+        If receiving a neighbour discovery solicit message,
+        punt to control-plane, then exit to avoid further processing.
+        */
+        if (
+            hdr.icmpv6.type == ICMPV6_TYPE_NEI_SOL &&
+            hdr.icmpv6.code == ICMPV6_CODE_NEI_SOL
+        ) {
+            log_msg("Packet is ICMPv6 neighbour discovery soliciation for {}", {hdr.icmpv6.target});
+            recv_nei_sol();
+            exit;
+        }
 
         /*
         If receiving a neighbour advertisement, punt to control-plane,
@@ -231,6 +324,11 @@ control IngressProcess(inout headers hdr,
             hdr.icmpv6.code == ICMPV6_CODE_NEI_ADV
         ) {
             recv_nei_adv();
+            exit;
+        }
+
+        // If forwarding a control-plane injected packet, skip further processing
+        if ( local_subnets.apply().hit) {
             exit;
         }
 
@@ -246,7 +344,6 @@ control IngressProcess(inout headers hdr,
         }
         //}
     }
-
 }
 
 control EgressProcess(inout headers hdr,

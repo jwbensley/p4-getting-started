@@ -140,18 +140,20 @@ In the following example the P4 device will receive IPv6 packets and either rout
 # Set up the topology and start the P4 switch running
 docker compose exec p4 /examples/l3_fwd_static/init.sh
 
-# In another terminal, start the control-plane
+# In two more terminal windows, start the control-plane for each switch
 docker compose exec p4 /examples/l3_fwd_static/control_plane.py
-
-# Optional, see packet counters on P4 device:
-docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters
+docker compose exec p4 /examples/l3_fwd_static/control_plane.py --switch2
 
 # Optional, tcpdump to verify
-docker compose exec p4 tcpdump -nnlASXevv -s 0 -i l2_r1
+docker compose exec p4 tcpdump -nnlASXevv -s 0 -i l3_r0
 
 # In another terminal, ping between the two subnets on the same switch, and between subnets on different switches
 docker compose exec p4 ip netns exec l3_0 ping -c 1 fd:0:0:1::2
 docker compose exec p4 ip netns exec l3_0 ping -c 1 fd:0:0:2::2
+
+# Optional, see packet counters on P4 device:
+docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters
+docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters --switch2
 
 # Optional, inspect the switch tables manually
 docker compose exec p4 simple_switch_CLI
