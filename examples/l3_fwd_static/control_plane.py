@@ -30,7 +30,7 @@ class Settings:
             0: {
                 "subnet": "fd::/64",
                 "ip": "fd::1",
-                "mac": "00:00:00:00:00:01",
+                "mac": "00:00:00:00:00:01"
             },
             1: {
                 "subnet": "fd:0:0:1::/64",
@@ -80,12 +80,19 @@ def add_adj(src_mac: int, egress_port: int, src_ip: int) -> None:
     """
     local_mac = port_mac_from_id(egress_port)
     mac_int = int("".join(local_mac.split(":")), 16)
-    ip = ipaddress.ip_address(src_ip)
-    logger.info(f"Adding adjacency entry for {ip} ({src_ip}) via {src_mac} on port {egress_port}")
+    logger.info(f"Adding adjacency entry for {ipaddress.ip_address(src_ip)} ({src_ip}) via {int_mac_to_str(src_mac)} ({src_mac}) on port {egress_port}")
+    # The IP address to be a string of the int for P4 to accept it ?!?!!
     Settings.CONTROLLER.table_add(
-        table_name=Settings.TABLE_ADJ, action_name=Settings.ACTION_SET_NEXT_HOP, match_keys=[src_ip],
+        table_name=Settings.TABLE_ADJ, action_name=Settings.ACTION_SET_NEXT_HOP, match_keys=[str(src_ip)],
         action_params=[str(egress_port), str(src_mac), str(mac_int)]
     )
+
+def int_mac_to_str(mac: int) -> str:
+    """
+    Return the ":" colon seperated format of a MAC address given as an int
+    """
+    mac_hex = f"{mac:012x}"
+    return ":".join([mac_hex[x:x+2] for x in range(0,len(mac_hex),2)])
 
 def learn_via_digest_loop() -> None:
     """
@@ -105,13 +112,13 @@ def learn_via_digest_loop() -> None:
             block=False prevents CTRL+C from being caught and the program can't
             be stopped.
 
-            time.sleep(0) is a hack to create an infinite loop which doesn't pin
-            one of the CPU cores at 100% and allows CTRL+C to work.
+            time.sleep() is a hack to create an infinite loop which doesn't pin
+            one of the CPU cores at 100% but still allows CTRL+C to work.
             """
             try:
                 msg: bytes = socket.recv(block=False)
             except pynng.TryAgain:
-                time.sleep(0)
+                time.sleep(0.0001)
                 continue
 
             """
@@ -138,28 +145,30 @@ def learn_via_digest_loop() -> None:
                 starting_index += 2
                 ip = int.from_bytes(msg[starting_index:starting_index+16], "big")
                 starting_index += 16
-                ####ipv6_addr = str(ipaddress.ip_address(ip))
 
                 logger.info(f"Digest message {idx} contains type: {msg_type}, "
-                            f"src_mac: {src_mac}, ingress_port: {ingress_port}, "
-                            f"ip: {ip}"
+                            f"src_mac: {int_mac_to_str(src_mac)}, ingress_port: {ingress_port}, "
+                            f"ip: {ipaddress.ip_address(ip)}"
                 )
 
                 if msg_type == Settings.T_RECV_NEI_SOL:
                     """
                     Store the neighbor details from which the request came from.
-                    Then send a neig disc adv in response.
+                    Then send a neigh disc adv in response.
                     """
                     add_adj(src_mac=src_mac, egress_port=ingress_port, src_ip=ip)
                     send_nei_disc_adv(dst_mac=src_mac, dst_ip=ip, egress_port=ingress_port)
 
                 elif msg_type == Settings.T_RECV_NEI_ADV:
                     """
-                    Store the neighbor details from the received neig disc adv.
+                    Store the neighbor details from the received neigh disc adv.
                     """
                     add_adj(src_mac=src_mac, egress_port=ingress_port, src_ip=ip)
 
                 elif msg_type == Settings.T_SEND_NEI_SOL:
+                    """
+                    Send neighbor discovery solicitation to learn directly attached next-hop.
+                    """
                     send_nei_disc_sol(ip)
 
                 else:
@@ -197,10 +206,13 @@ def parse_args() ->  dict[str, Any]:
 
     return args
 
-def port_id_from_ip(ipv6_addr: str) -> int:
+def port_id_from_ip(ip: str) -> int:
+    ip_addr = ipaddress.ip_address(ip)
     for port_id, port_config in Settings.SWITCH_PORTS[Settings.SWITCH].items():
-        if ipv6_addr in ipaddress.ip_network(port_config["subnet"]):
-            logger.info(f"Returning port ID {port_id} for IP address {ipv6_addr}")
+        subnet = ipaddress.ip_network(port_config["subnet"])
+        logger.info(f"Checking if {ip_addr} is in {subnet}")
+        if ip_addr in subnet:
+            logger.info(f"Returning port ID {port_id} for IP address {ip_addr}")
             return port_id
     else:
         """
@@ -209,8 +221,7 @@ def port_id_from_ip(ipv6_addr: str) -> int:
         If there is a chance the forwarding plane and control plane routing tables
         can be out of sync, this check needs to be made in the control plane too.
         """
-        logger.error(f"No local subnet found for IP address {ipv6_addr}")
-    return -1
+    raise ValueError(f"No local subnet found for IP address {ip_addr}")
 
 def port_ip_from_id(port_id: int) -> str:
     return Settings.SWITCH_PORTS[Settings.SWITCH][port_id]["ip"]
@@ -255,35 +266,52 @@ def populate_tables() -> None:
     connected to, to the IPv6 RIB
     """
 
-def send_nei_disc_adv(dst_mac: str, dst_ip: str, egress_port: str) -> None:
-    logger.info(f"Going to send a neighbour discovery advertisement to {dst_mac}/{dst_ip}")
-    src_mac=port_mac_from_id(egress_port),
+def send_nei_disc_adv(dst_mac: int, dst_ip: int, egress_port: int) -> None:
+    """
+    Send a neighbor discovery advertisement with the local router's IP+MAC
+    """
+    dst_mac_str = int_mac_to_str(dst_mac)
+    dst_ip_str = ipaddress.ip_address(dst_ip)
+    src_mac=port_mac_from_id(egress_port)
     src_ip=port_ip_from_id(egress_port)
-    pkt = Ether(dst=dst_mac, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip) / ICMPv6ND_NA(tgt="")
+
+    logger.info(
+        f"Going to send a neighbour discovery advertisement to "
+        f"{dst_mac_str}/{dst_ip_str} from "
+        f"{src_mac}/{src_ip}"
+    )
+    pkt = Ether(dst=dst_mac_str, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip_str) / ICMPv6ND_NA(R=0, S=1, O=0, tgt=src_ip)
     logger.info(f"Injecting packet: {pkt}")
     sendp(pkt, iface=Settings.CPU_INJECT_INTT)
 
-def send_nei_disc_sol(ipv6_addr: str) -> None:
-    logger.info(f"Going to send neighbour discovery solicitation")
+def send_nei_disc_sol(ip: int) -> None:
+    """
+    Send neighbor discovery solicitation to learn directly attached next-hop
+    """
+    last_32_bits = hex(int(ip) & 0xffffffff).strip("0x").zfill(8)
 
-    last_32_bits = hex(int(ipv6_addr) & 0xffffffff).strip("0x")
-
-    egr_port_id = port_id_from_ip(ipv6_addr)
-    if egr_port_id == -1:
-        logger.error(f"Unable to send neighbor solicitation to {ipv6_addr}, no local subnet")
-        return
+    egr_port_id = port_id_from_ip(str(ipaddress.ip_address(ip)))
 
     src_mac = port_mac_from_id(egr_port_id)
-    dst_mac = "33:33:"  +  last_32_bits[0:2] + ":" + last_32_bits[2:4] + ":" + last_32_bits[4:6] + ":" + last_32_bits[6:8]
+    dst_mac = "33:33:"  + ":".join([last_32_bits[0:2], last_32_bits[2:4], last_32_bits[4:6], last_32_bits[6:8]])
 
     src_ip = port_ip_from_id(egr_port_id)
-    dst_ip = "ff02::1:ff" + last_32_bits[2:4] + ":" + last_32_bits[4:8]
+    dst_ip = f"ff02::1:ff{last_32_bits[2:4]}:{last_32_bits[4:8]}"
 
-    pkt = Ether(dst=dst_mac, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip) / ICMPv6ND_NS(tgt="")
+    logger.info(
+        f"Going to send neighbour discovery solicitation for "
+        f"{ipaddress.ip_address(ip)} via port {egr_port_id} to "
+        f"{dst_mac}/{dst_ip} from {src_mac}/{src_ip}"
+    )
+
+    pkt = Ether(dst=dst_mac, src=src_mac, type=ETH_P_IPV6) / IPv6(src=src_ip, dst=dst_ip) / ICMPv6ND_NS(tgt=dst_ip)
     logger.info(f"Injecting packet: {pkt}")
     sendp(pkt, iface=Settings.CPU_INJECT_INTT)
 
 def read_counters() -> None:
+    """
+    Print interface counters to STDOUT
+    """
     for port_id in Settings.SWITCH_PORTS:
         Settings.CONTROLLER.counter_read(counter_name=Settings.COUNTER_INGRESS, index=port_id)
         Settings.CONTROLLER.counter_read(counter_name=Settings.COUNTER_EGRESS, index=port_id)

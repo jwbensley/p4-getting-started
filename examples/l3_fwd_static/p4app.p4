@@ -54,7 +54,7 @@ error {
     NotIpV6
 }
 
-const bit<8> T_SEND_NEI_ADV = 0;
+const bit<8> T_SEND_NEI_SOL = 0;
 const bit<8> T_RECV_NEI_ADV = 1;
 const bit<8> T_RECV_NEI_SOL = 2;
 
@@ -157,12 +157,12 @@ control IngressProcess(inout headers hdr,
         mark_to_drop(standard_metadata);
     }
 
-    action send_nei_adv() {
+    action send_nei_sol() {
         /*
-        Signal the control-plane to send send a neigh disc adv for this IP
+        Signal the control-plane to send send a neigh disc solicit for this IP
         address, data-plane is missing the MAC address.
         */
-        digest<digest_t>(0, {T_SEND_NEI_ADV, 0, 511, hdr.ipv6.dstAddr});
+        digest<digest_t>(0, {T_SEND_NEI_SOL, 0, 511, hdr.ipv6.dstAddr});
     }
 
     action recv_nei_sol() {
@@ -288,9 +288,9 @@ control IngressProcess(inout headers hdr,
         }
         actions = {
             set_next_hop;
-            send_nei_adv;
+            send_nei_sol;
         }
-        default_action = send_nei_adv();
+        default_action = send_nei_sol();
         size = 256;
     }
 
@@ -301,6 +301,24 @@ control IngressProcess(inout headers hdr,
         // if ( nei_solc_req.apply().hit) {
         //     exit;
         // }
+
+        // If forwarding a control-plane injected packet, skip further processing
+        if ( local_subnets.apply().hit) {
+            exit;
+        }
+
+        /*
+        For transit traffic;
+        - Perform a route lookup:
+        - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
+        - - If result is 0, dest IP is directly attached, lookup adj for dest IP
+        */
+        //if (hdr.ipv6.isValid()){
+        if (ipv6_routes.apply().hit) {
+            ipv6_adj.apply();
+            exit;
+        }
+        //}
 
         /*
         If receiving a neighbour discovery solicit message,
@@ -317,32 +335,17 @@ control IngressProcess(inout headers hdr,
 
         /*
         If receiving a neighbour advertisement, punt to control-plane,
-        then exit to avoid a fowarding plane lookup.
+        then exit to avoid a further processing.
         */
         if (
             hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV &&
             hdr.icmpv6.code == ICMPV6_CODE_NEI_ADV
         ) {
+            log_msg("Packet is ICMPv6 neighbour discovery advertisement from {}", {hdr.icmpv6.target});
             recv_nei_adv();
             exit;
         }
 
-        // If forwarding a control-plane injected packet, skip further processing
-        if ( local_subnets.apply().hit) {
-            exit;
-        }
-
-        /*
-        For transit traffic;
-        - Perform a route lookup:
-        - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
-        - - If result is 0, dest IP is directly attached, lookup adj for dest IP
-        */
-        //if (hdr.ipv6.isValid()){
-        if (ipv6_routes.apply().hit) {
-            ipv6_adj.apply();
-        }
-        //}
     }
 }
 
@@ -367,6 +370,7 @@ control EgressDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv6);
+        packet.emit(hdr.icmpv6);
     }
 }
 
