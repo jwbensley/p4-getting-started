@@ -19,8 +19,10 @@ RUN git clone https://github.com/nsg-ethz/p4-utils.git /p4-utils && \
 cd /p4-utils/ && \
 pip install -e "."
 
-COPY ./examples /examples
+COPY ./examples/requirements.txt /examples/requirements.txt
 
 RUN pip install -r /examples/requirements.txt
+
+COPY ./examples /examples
 
 WORKDIR /examples/
