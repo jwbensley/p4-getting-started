@@ -34,6 +34,10 @@ header icmpv6_t {
     bit<128> target;
 }
 
+const bit<8> ICMPV6_CODE_ECHO_REQ = 0;
+const bit<8> ICMPV6_TYPE_ECHO_REQ = 128;
+const bit<8> ICMPV6_CODE_ECHO_REP = 0;
+const bit<8> ICMPV6_TYPE_ECHO_REP = 129;
 const bit<8> ICMPV6_TYPE_NEI_SOL = 135;
 const bit<8> ICMPV6_CODE_NEI_SOL = 0;
 const bit<8> ICMPV6_TYPE_NEI_ADV = 136;
@@ -297,10 +301,29 @@ control IngressProcess(inout headers hdr,
     apply {
         ingressPackets.count((bit<32>)standard_metadata.ingress_port);
 
-        // If receiving a nei disc solic, punt to CPU, nothing further to do
-        // if ( nei_solc_req.apply().hit) {
-        //     exit;
-        // }
+        /* This would be terrible for performance in production but handy for debugging */
+        if (
+            hdr.icmpv6.type == ICMPV6_TYPE_ECHO_REQ &&
+            hdr.icmpv6.code == ICMPV6_CODE_ECHO_REQ
+        ) {
+            log_msg("Packet is ICMPv6 echo request to {}", {hdr.ipv6.dstAddr});
+        } else if (
+            hdr.icmpv6.type == ICMPV6_TYPE_ECHO_REP &&
+            hdr.icmpv6.code == ICMPV6_CODE_ECHO_REP
+        ) {
+            log_msg("Packet is ICMPv6 echo reply from {}", {hdr.ipv6.srcAddr});
+        } else if (
+            hdr.icmpv6.type == ICMPV6_TYPE_NEI_SOL &&
+            hdr.icmpv6.code == ICMPV6_CODE_NEI_SOL
+        ) {
+            log_msg("Packet is ICMPv6 neighbour discovery soliciation for {}", {hdr.icmpv6.target});
+        } else if (
+            hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV &&
+            hdr.icmpv6.code == ICMPV6_CODE_NEI_ADV
+        ) {
+            log_msg("Packet is ICMPv6 neighbour discovery advertisement from {}", {hdr.icmpv6.target});
+        }
+
 
         // If forwarding a control-plane injected packet, skip further processing
         if ( local_subnets.apply().hit) {
@@ -313,35 +336,26 @@ control IngressProcess(inout headers hdr,
         - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
         - - If result is 0, dest IP is directly attached, lookup adj for dest IP
         */
-        //if (hdr.ipv6.isValid()){
         if (ipv6_routes.apply().hit) {
             ipv6_adj.apply();
             exit;
         }
-        //}
 
-        /*
-        If receiving a neighbour discovery solicit message,
-        punt to control-plane, then exit to avoid further processing.
-        */
         if (
             hdr.icmpv6.type == ICMPV6_TYPE_NEI_SOL &&
             hdr.icmpv6.code == ICMPV6_CODE_NEI_SOL
         ) {
-            log_msg("Packet is ICMPv6 neighbour discovery soliciation for {}", {hdr.icmpv6.target});
+            /*
+            If receiving a neighbour discovery solicit message, punt to control-plane
+            */
             recv_nei_sol();
-            exit;
-        }
-
-        /*
-        If receiving a neighbour advertisement, punt to control-plane,
-        then exit to avoid a further processing.
-        */
-        if (
+        } else if (
             hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV &&
             hdr.icmpv6.code == ICMPV6_CODE_NEI_ADV
         ) {
-            log_msg("Packet is ICMPv6 neighbour discovery advertisement from {}", {hdr.icmpv6.target});
+            /*
+            If receiving a neighbour advertisement, punt to control-plane
+            */
             recv_nei_adv();
             exit;
         }
