@@ -145,11 +145,15 @@ docker compose exec p4 /examples/l3_fwd_static/control_plane.py
 docker compose exec p4 /examples/l3_fwd_static/control_plane.py --switch2
 
 # Optional, tcpdump to verify
-docker compose exec p4 tcpdump -nnlASXevv -s 0 -i l3_r0
+docker compose exec p4 tcpdump -s 65535 -i l3_r0 -w /examples/l3_fwd_static/l3_fwd_static.pcap
+# docker compose exec p4 ip netns exec l3_1 tcpdump -nnlASXevv -s 0 -i l3_1
+# docker compose exec p4 bash -c "tcpdump -s 0 -U -i l3_r0 -n -w - 2>/dev/null" | wireshark -k -i -
+# docker compose exec p4 bash -c "tcpdump -s 0 -U -i l3_r1 -n -w - 2>/dev/null" | wireshark -k -i -
+# docker compose exec p4 bash -c "ip netns exec l3_1 tcpdump -s 0 -U -i l3_1 -n -w - 2>/dev/null" | wireshark -k -i -
 
 # In another terminal, ping between the two subnets on the same switch, and between subnets on different switches
-docker compose exec p4 ip netns exec l3_0 ping -c 1 fd:0:0:1::2
-docker compose exec p4 ip netns exec l3_0 ping -c 1 fd:0:0:2::2
+docker compose exec p4 ip netns exec l3_0 ping6 -c 1 fd:0:0:1::2
+docker compose exec p4 ip netns exec l3_0 ping6 -c 1 fd:0:0:2::2
 
 # Optional, see packet counters on P4 device:
 docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters
