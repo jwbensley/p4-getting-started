@@ -82,7 +82,7 @@ docker compose exec p4 /examples/clean_up.sh
 
 Example output:
 
-```text
+```shell
 $ docker compose exec p4 /examples/l2_fwd_learning/control_plane.py --counters
 ingressFrames[0]= (0 bytes, 0 packets)
 egressFrames[0]= (0 bytes, 0 packets)
@@ -134,34 +134,81 @@ It is not possible to implement a full ARP or NDP implementation directly in P4.
 
 In addition, that only solves L3 resolution of the P4 router IP. When a P4 router receives a packet with an IP address in a subnet which configured on a different L3 interface than the subnet configured on the interface the packet was received on (meaning the packet needs to be L3 routed), if the P4 switch has no L2 entry for the destination IP address, P4 is unable to buffer the packet and wait for an action to complete (send an ARP/ND request and watch for a response, also updating forwarding tables at run time by using P4 forwarding plane code is only support on specific targets, Bmv2 is not one of those targets!).
 
-In the following example the P4 device will receive IPv6 packets and either route them locally or forward to another P4 device which has a route to the destination subnet. Both devices are capable of responding to ND solicitations for their own interface IPs, as well as soliciting for IPs of devices on locally connected subnets. This requires a control-plane app to transmit ND solicitations and update the adjacency table when a ND advertisement is received.
+In the following example the P4 device will receive IPv6 packets and either route them locally or forward to another P4 device which has a route to the destination subnet (the control-plane programs static routes between devices). Both devices are capable of responding to ND solicitations for their own interface IPs, as well as soliciting for IPs of devices on locally connected subnets or for next-hop IPs of non-locally connected subnets. This requires a control-plane app to transmit ND solicitations and update the adjacency table when a ND advertisement is received.
 
 ```shell
 # Set up the topology and start the P4 switch running
-docker compose exec p4 /examples/l3_fwd_static/init.sh
+docker compose up -d
+docker compose exec p4 /examples/l3_fwd_static/init.sh    # switch 0
+docker compose exec p4 /examples/l3_fwd_static/init.sh -1 # switch 1
 
 # In two more terminal windows, start the control-plane for each switch
 docker compose exec p4 /examples/l3_fwd_static/control_plane.py
-docker compose exec p4 /examples/l3_fwd_static/control_plane.py --switch2
+docker compose exec p4 /examples/l3_fwd_static/control_plane.py --switch1
 
 # Optional, tcpdump to verify
 docker compose exec p4 tcpdump -s 65535 -i l3_r0 -w /examples/l3_fwd_static/l3_fwd_static.pcap
 # docker compose exec p4 ip netns exec l3_1 tcpdump -nnlASXevv -s 0 -i l3_1
-# docker compose exec p4 bash -c "tcpdump -s 0 -U -i l3_r0 -n -w - 2>/dev/null" | wireshark -k -i -
-# docker compose exec p4 bash -c "tcpdump -s 0 -U -i l3_r1 -n -w - 2>/dev/null" | wireshark -k -i -
 # docker compose exec p4 bash -c "ip netns exec l3_1 tcpdump -s 0 -U -i l3_1 -n -w - 2>/dev/null" | wireshark -k -i -
+# docker compose exec p4 bash -c "tcpdump -s 0 -U -i l3_r0 -n -w - 2>/dev/null" | wireshark -k -i -
+# docker compose exec p4 bash -c "tcpdump -s 0 -U -i isl2 -n -w - 2>/dev/null" | wireshark -k -i -
 
-# In another terminal, ping between the two subnets on the same switch, and between subnets on different switches
-docker compose exec p4 ip netns exec l3_0 ping6 -c 1 fd:0:0:1::2
-docker compose exec p4 ip netns exec l3_0 ping6 -c 1 fd:0:0:2::2
+# In another terminal, ping between the subnets on the same switch, and between subnets on different switches
+docker compose exec p4 ip netns exec l3_0 ping6 -c 10 -n fd:0:0:1::2
+docker compose exec p4 ip netns exec l3_0 ping6 -c 10 -n fd:0:0:2::2
 
 # Optional, see packet counters on P4 device:
 docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters
-docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters --switch2
+docker compose exec p4 /examples/l3_fwd_static/control_plane.py --counters --switch1
 
 # Optional, inspect the switch tables manually
 docker compose exec p4 simple_switch_CLI
 
 # Clean up
 docker compose exec p4 /examples/clean_up.sh
+```
+
+Example output:
+
+```shell
+# Pinging to a local subnet on the same switch.
+# The performance  of the software switch is quite bad,
+# several pings are lost whilst everything converges
+$ docker compose exec p4 ip netns exec l3_0 ping6 -c 10 -n fd:0:0:1::2
+PING fd:0:0:1::2 (fd:0:0:1::2): 56 data bytes
+64 bytes from fd:0:0:1::2: icmp_seq=4 ttl=64 time=1.826 ms
+64 bytes from fd:0:0:1::2: icmp_seq=5 ttl=64 time=1.787 ms
+64 bytes from fd:0:0:1::2: icmp_seq=6 ttl=64 time=1.918 ms
+64 bytes from fd:0:0:1::2: icmp_seq=7 ttl=64 time=1.873 ms
+64 bytes from fd:0:0:1::2: icmp_seq=8 ttl=64 time=1.580 ms
+64 bytes from fd:0:0:1::2: icmp_seq=9 ttl=64 time=1.515 ms
+--- fd:0:0:1::2 ping statistics ---
+10 packets transmitted, 6 packets received, 40% packet loss
+round-trip min/avg/max/stddev = 1.515/1.750/1.918/0.150 ms
+
+# Pinging to a remote subnet on the other switch, initially lots of packet loss:
+$ docker compose exec p4 ip netns exec l3_0 ping6 -c 10 -n fd:0:0:2::2
+PING fd:0:0:2::2 (fd:0:0:2::2): 56 data bytes
+64 bytes from fd:0:0:2::2: icmp_seq=8 ttl=64 time=2.959 ms
+64 bytes from fd:0:0:2::2: icmp_seq=9 ttl=64 time=3.113 ms
+^C--- fd:0:0:2::2 ping statistics ---
+10 packets transmitted, 2 packets received, 80% packet loss
+round-trip min/avg/max/stddev = 2.959/3.036/3.113/0.077 ms
+
+# Once things have converged, it seems to be OK
+$ docker compose exec p4 ip netns exec l3_0 ping6 -c 10 -n fd:0:0:2::2
+PING fd:0:0:2::2 (fd:0:0:2::2): 56 data bytes
+64 bytes from fd:0:0:2::2: icmp_seq=0 ttl=64 time=1.383 ms
+64 bytes from fd:0:0:2::2: icmp_seq=1 ttl=64 time=1.718 ms
+64 bytes from fd:0:0:2::2: icmp_seq=2 ttl=64 time=1055.725 ms # ¯\_(ツ)_/¯
+64 bytes from fd:0:0:2::2: icmp_seq=3 ttl=64 time=54.251 ms
+64 bytes from fd:0:0:2::2: icmp_seq=4 ttl=64 time=2.520 ms
+64 bytes from fd:0:0:2::2: icmp_seq=5 ttl=64 time=2.222 ms
+64 bytes from fd:0:0:2::2: icmp_seq=6 ttl=64 time=2.987 ms
+64 bytes from fd:0:0:2::2: icmp_seq=7 ttl=64 time=3.087 ms
+64 bytes from fd:0:0:2::2: icmp_seq=8 ttl=64 time=1.232 ms
+64 bytes from fd:0:0:2::2: icmp_seq=9 ttl=64 time=2.975 ms
+--- fd:0:0:2::2 ping statistics ---
+10 packets transmitted, 10 packets received, 0% packet loss
+round-trip min/avg/max/stddev = 1.232/112.810/1055.725/314.688 ms
 ```

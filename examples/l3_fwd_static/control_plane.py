@@ -18,34 +18,35 @@ from scapy.sendrecv import sendp  # type: ignore
 class Settings:
     ACTION_SET_ADJ = "set_adj"
     ACTION_SET_EGR_PORT = "set_egress_port"
-    ACTION_SET_NEXT_HOP = "set_next_hop"
+    ACTION_SET_NEXT_HOP = "egress_l2_rewrite"
     CONTROLLER: SimpleSwitchThriftAPI
     COUNTER_INGRESS = "ingressPackets"
     COUNTER_EGRESS = "egressPackets"
-    CPU_INJECT_INTT = (
-        "cpu"  # Linux interface control-plane inject packets are sent on
-    )
+    CPU_INJECT_INTF = "cpu"  # Linux interface which control-plane injected packets are sent on
     LOGGING_FORMAT = (
         "%(asctime)s|%(levelname)s|%(process)d|%(funcName)s|%(message)s"
     )
     READ_COUNTERS = False
-    SWITCH = 0  # Default switch the contron plane connects to, 0-indexed
+    SWITCH = 0  # Default switch the control plane connects to, zero-indexed
     SWITCH_PORTS = {  # { switch_id: { port_id: { port_data } }
         0: {
             0: {
                 "subnet": "fd::/64",
                 "ip": "fd::1",
                 "mac": "00:00:00:00:00:01",
+                "isl_subnet": False,
             },
             1: {
                 "subnet": "fd:0:0:1::/64",
                 "ip": "fd:0:0:1::1",
                 "mac": "00:00:00:00:01:01",
+                "isl_subnet": False,
             },
             2: {
                 "subnet": "fd:0:0:ff::/64",
                 "ip": "fd:0:0:ff::1",
                 "mac": "00:00:00:00:FF:01",
+                "isl_subnet": True,
             },
         },
         1: {
@@ -53,11 +54,13 @@ class Settings:
                 "subnet": "fd:0:0:ff::/64",
                 "ip": "fd:0:0:ff::2",
                 "mac": "00:00:00:00:FF:02",
+                "isl_subnet": True,
             },
             1: {
                 "subnet": "fd:0:0:2::/64",
                 "ip": "fd:0:0:2::1",
                 "mac": "00:00:00:00:02:01",
+                "isl_subnet": False,
             },
         },
     }
@@ -65,7 +68,8 @@ class Settings:
     T_RECV_NEI_ADV = 1
     T_RECV_NEI_SOL = 2
     TABLE_ADJ = "ipv6_adj"
-    TABLE_LOCAL = "local_subnets"
+    TABLE_FROM_LOCAL = "from_local_ip"
+    TABLE_TO_LOCAL = "to_local_ip"
     TABLE_ROUTES = "ipv6_routes"
     THRIFT_PORT = "909"  # Switch ID is appended to this
     THRIFT_IP = "127.0.0.1"
@@ -153,7 +157,7 @@ def learn_via_digest_loop() -> None:
                 """
                 A 6 byte MAC + 2 byte port ID + 8 byte IPv6 address are sent
                 from the data plane in the digest message.
-                unpack() can't unpack on boundtries like 6 bytes, so we'll have
+                unpack() can't unpack on boundaries like 6 bytes, so we'll have
                 to do it manually.
                 """
                 msg_type = int.from_bytes(
@@ -227,7 +231,7 @@ def parse_args() -> dict[str, Any]:
         required=False,
     )
     parser.add_argument(
-        "--switch2",
+        "--switch1",
         help="The control plane shall connect to switch2. "
         "By default it connects to switch1.",
         default=False,
@@ -238,7 +242,7 @@ def parse_args() -> dict[str, Any]:
 
     if args["counters"]:
         Settings.READ_COUNTERS = True
-    if args["switch2"]:
+    if args["switch1"]:
         Settings.SWITCH = 1  # Zero indexed
 
     return args
@@ -278,9 +282,9 @@ def port_subnet_from_id(port_id: int) -> str:
 
 def populate_tables() -> None:
     """
-    Add the locally connnected subnets as IPv6 routes.
+    Add the locally connected subnets as IPv6 routes.
     Add the local interface IPs and associated port IDs for CPU injected packets.
-    Add the nei disc solicit destination address to match received NDP solicit messages.
+    Add the static route via neighbour switch.
     """
     logger.info(f"Populating tables on switch {Settings.SWITCH}")
     for port_id in Settings.SWITCH_PORTS[Settings.SWITCH].keys():
@@ -291,7 +295,7 @@ def populate_tables() -> None:
         ip_str = str(int(ip_addr))
         prefix = ip_str + "/" + subnet.split("/")[-1]
 
-        # Insert local subnet as -> (next_hop_ip(0), egress_port_id(port_id))
+        # Insert locally connected subnets to routing table as -> (next_hop_ip(0), egress_port_id(port_id))
         logger.info(
             f"Adding local subnet {ip_cidr} ({prefix}) as route via port {port_id}"
         )
@@ -307,16 +311,53 @@ def populate_tables() -> None:
             f"Adding local IP {ip_addr} ({ip_str}) to port mapping {port_id}"
         )
         Settings.CONTROLLER.table_add(
-            table_name=Settings.TABLE_LOCAL,
+            table_name=Settings.TABLE_FROM_LOCAL,
             action_name=Settings.ACTION_SET_EGR_PORT,
             match_keys=[ip_str],
             action_params=[str(port_id)],
         )
 
-    """
-    Add the local subnets and egress interface ID, the switch is directly
-    connected to, to the IPv6 RIB
-    """
+    if Settings.SWITCH == 0:
+        other_switch = 1
+    else:
+        other_switch = 0
+
+    # Insert route(s) to neighbour switch subnets(s)
+    local_isl: dict = list(
+        filter(
+            lambda d: d["isl_subnet"] == True,
+            Settings.SWITCH_PORTS[Settings.SWITCH].values(),
+        )
+    )[0]
+    local_isl["port_id"] = port_id_from_ip(local_isl['ip'])
+    peer_isl: dict = list(
+        filter(
+            lambda d: d["isl_subnet"] == True,
+            Settings.SWITCH_PORTS[other_switch].values(),
+        )
+    )[0]
+    for port_id in Settings.SWITCH_PORTS[other_switch].keys():
+        port_conf = Settings.SWITCH_PORTS[other_switch][port_id]
+        if port_conf["isl_subnet"]:
+            continue
+
+        # IP/subnets need to be str of IP address as int + CIDR mask
+        ip_addr = ipaddress.ip_address(port_conf["ip"])
+        ip_str = str(int(ip_addr))
+        prefix = ip_str + "/" + port_conf["subnet"].split("/")[-1]
+
+        next_hop = str(int(ipaddress.ip_address(peer_isl["ip"])))
+
+        logger.info(
+            f"Adding static route to {port_conf['subnet']} ({prefix}) via next-hop "
+            f"{peer_isl['ip']} ({next_hop}) via port {local_isl['port_id']}"
+        )
+        Settings.CONTROLLER.table_add(
+            table_name=Settings.TABLE_ROUTES,
+            action_name=Settings.ACTION_SET_ADJ,
+            match_keys=[prefix],
+            action_params=[next_hop, str(local_isl['port_id'])],
+        )
 
 
 def send_nei_disc_adv(dst_mac: int, dst_ip: int, egress_port: int) -> None:
@@ -340,7 +381,7 @@ def send_nei_disc_adv(dst_mac: int, dst_ip: int, egress_port: int) -> None:
         / ICMPv6NDOptDstLLAddr(lladdr=src_mac)
     )
     logger.info(f"Injecting packet: {pkt}")
-    sendp(pkt, iface=Settings.CPU_INJECT_INTT)
+    sendp(pkt, iface=Settings.CPU_INJECT_INTF + str(Settings.SWITCH))
 
 
 def send_nei_disc_sol(ip: int) -> None:
@@ -377,7 +418,7 @@ def send_nei_disc_sol(ip: int) -> None:
         / ICMPv6NDOptSrcLLAddr(lladdr=src_mac)
     )
     logger.info(f"Injecting packet: {pkt}")
-    sendp(pkt, iface=Settings.CPU_INJECT_INTT)
+    sendp(pkt, iface=Settings.CPU_INJECT_INTF + str(Settings.SWITCH))
 
 
 def read_counters() -> None:

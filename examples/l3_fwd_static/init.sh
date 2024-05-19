@@ -4,7 +4,7 @@
 # and there is a route programmed by the control-plane between the local
 # subnets:
 #
-#     Software Switch 1                             Linux Kernel
+#     Software Switch 0                             Linux Kernel
 # ------------------------   -------------------------      -------------------------
 # |                      |   - Namespace: None       -      - Namespace: l3_0       -
 # |┌───────────────────┐ |   - ┌───────────────────┐ -      - ┌───────────────────┐ -
@@ -29,7 +29,7 @@
 # |└───────────────────┘ |   -          |            -
 # |----------------------|   -          |            -
 #                            -          |            -
-#   Software Switch 2        -          |            -
+#   Software Switch 1        -          |            -
 # |----------------------|   -          |            -
 # |┌───────────────────┐ |   - ┌────────┴──────────┐ -
 # |│ intf: 0           | |   - │ intf: isl2        │ -
@@ -42,9 +42,6 @@
 # |│                   │ |   - │ 00:00:00:00:02:01 │ -      - │ 00:00:00:00:02:02 │ -
 # |└────────┬──────────┘ |   - └───────────────────┘ -      - └───────────────────┘ -
 # |┌────────┴──────────┐ |   -------------------------      -------------------------
-# |│ intf: 2           │ |
-# |└────────┬──────────┘ |
-# |┌────────┴──────────┐ |
 # |│ intf: 100 -> CPU  | |
 # |└───────────────────┘ |
 # |----------------------|
@@ -108,13 +105,20 @@ then
     sysctl -w net.ipv6.conf.isl2.disable_ipv6=1
 
     # For CPU injected frames
-    ip link add cpu type veth peer name cpu_0
-    ip addr flush dev cpu
-    ip addr flush dev cpu_0
-    sysctl -w net.ipv6.conf.cpu.disable_ipv6=1
-    sysctl -w net.ipv6.conf.cpu_0.disable_ipv6=1
-    ip link set up dev cpu
-    ip link set up dev cpu_0
+    ip link add cpu0 type veth peer name cpu_r0
+    ip link add cpu1 type veth peer name cpu_r1
+    ip addr flush dev cpu0
+    ip addr flush dev cpu_r0
+    ip addr flush dev cpu1
+    ip addr flush dev cpu_r1
+    sysctl -w net.ipv6.conf.cpu0.disable_ipv6=1
+    sysctl -w net.ipv6.conf.cpu_r0.disable_ipv6=1
+    sysctl -w net.ipv6.conf.cpu1.disable_ipv6=1
+    sysctl -w net.ipv6.conf.cpu_r1.disable_ipv6=1
+    ip link set up dev cpu0
+    ip link set up dev cpu_r0
+    ip link set up dev cpu1
+    ip link set up dev cpu_r1
 
     ip netns exec l3_0 ip a
     ip netns exec l3_0 ip r
@@ -130,6 +134,16 @@ then
     echo ""
 fi
 
+sleep 1
+
 SCRIPT_DIR=$(dirname "$0")
 p4c --target bmv2 --arch v1model --std p4-16 -o "$SCRIPT_DIR" --p4runtime-files "${SCRIPT_DIR}/p4app.p4.txt" "${SCRIPT_DIR}/p4app.p4"
-simple_switch --thrift-port 9090 -i 0@l3_r0 -i 1@l3_r1 -i 2@isl1 -i 100@cpu -L debug --log-console --dump-packet-data 64 "${SCRIPT_DIR}/p4app.json"
+
+if [ $# -eq 1 ]
+then
+    # Switch 1
+    simple_switch --thrift-port 9091 -i 0@isl2 -i 1@l3_r2 -i 100@cpu1 -L debug --log-console --dump-packet-data 64 --device-id 1 "${SCRIPT_DIR}/p4app.json"
+else
+    # Switch 0
+    simple_switch --thrift-port 9090 -i 0@l3_r0 -i 1@l3_r1 -i 2@isl1 -i 100@cpu0 -L debug --log-console --dump-packet-data 64 --device-id 0 "${SCRIPT_DIR}/p4app.json"
+fi

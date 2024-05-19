@@ -165,8 +165,15 @@ control IngressProcess(inout headers hdr,
         /*
         Signal the control-plane to send send a neigh disc solicit for this IP
         address, data-plane is missing the MAC address.
+
+        If the dst IP is a directly connected subnet, we need to send a neighbor
+        solicit for the dest IP in the packet, if it is indirectly connected
+        (via a next-hop), we need to solicit for the next-hop IP MAC address.
+
+        During route lookup, meta.adj_ip was set to either the dst IP if it is
+        a locally connected subnet, or the next-hop IP if it is a remote subnet.
         */
-        digest<digest_t>(0, {T_SEND_NEI_SOL, 0, 511, hdr.ipv6.dstAddr});
+        digest<digest_t>(0, {T_SEND_NEI_SOL, 0, 511, meta.adj_ip});
     }
 
     action recv_nei_sol() {
@@ -191,14 +198,16 @@ control IngressProcess(inout headers hdr,
 
     action set_adj(IpV6Addr nextHop, PortId_t egress_port) {
         if (nextHop == 0) {
+            // Destination is reachable via locally connected subnet/interface
             meta.adj_ip = hdr.ipv6.dstAddr;
             meta.egress_port = egress_port;
         } else {
+            // Destination is reachable via a next-hop IP/device
             meta.adj_ip = nextHop;
         }
     }
 
-    action set_next_hop(PortId_t egress_port, MacAddr_t dstMac, MacAddr_t srcMac) {
+    action egress_l2_rewrite(PortId_t egress_port, MacAddr_t dstMac, MacAddr_t srcMac) {
         standard_metadata.egress_spec = egress_port;
         hdr.ethernet.dstMac = dstMac;
         hdr.ethernet.srcMac = srcMac;
@@ -207,27 +216,6 @@ control IngressProcess(inout headers hdr,
     action set_egress_port(PortId_t egress_port) {
         standard_metadata.egress_spec = egress_port;
     }
-
-    /*
-    Match incoming neighbour discovery solicitations.
-
-    Table miss means not an nei dis solic packet.
-    Table hit means nei solicit packet for "me".
-
-    A hit punts the packet to control-plane.
-    A miss does nothing because this wasn't an NDP solicit.
-    */
-    // table nei_solc_req {
-    //     key = {
-    //         hdr.ipv6.dstAddr: exact;
-    //     }
-    //     actions = {
-    //         recv_nei_sol;
-    //         NoAction;
-    //     }
-    //     default_action = NoAction();
-    //     size = 256;
-    // }
 
     /*
     Packets which are CPU injected into the data plane with have
@@ -242,7 +230,7 @@ control IngressProcess(inout headers hdr,
     A hit returns the egress port ID to forward the packet out of.
     A miss does nothing because this wasn't a CPU injected port.
     */
-    table local_subnets {
+    table from_local_ip {
         key = {
             hdr.ipv6.srcAddr: exact;
         }
@@ -291,7 +279,7 @@ control IngressProcess(inout headers hdr,
             meta.adj_ip: exact;
         }
         actions = {
-            set_next_hop;
+            egress_l2_rewrite;
             send_nei_sol;
         }
         default_action = send_nei_sol();
@@ -326,18 +314,7 @@ control IngressProcess(inout headers hdr,
 
 
         // If forwarding a control-plane injected packet, skip further processing
-        if ( local_subnets.apply().hit) {
-            exit;
-        }
-
-        /*
-        For transit traffic;
-        - Perform a route lookup:
-        - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
-        - - If result is 0, dest IP is directly attached, lookup adj for dest IP
-        */
-        if (ipv6_routes.apply().hit) {
-            ipv6_adj.apply();
+        if ( from_local_ip.apply().hit) {
             exit;
         }
 
@@ -349,6 +326,7 @@ control IngressProcess(inout headers hdr,
             If receiving a neighbour discovery solicit message, punt to control-plane
             */
             recv_nei_sol();
+            exit;
         } else if (
             hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV &&
             hdr.icmpv6.code == ICMPV6_CODE_NEI_ADV
@@ -360,6 +338,18 @@ control IngressProcess(inout headers hdr,
             exit;
         }
 
+        /*
+        For transit traffic;
+        - Perform a route lookup:
+        - - If result is an IP, that is a next-hop, lookup adj for next-hop IP
+        - - If result is 0, dest IP is directly attached, lookup adj for dest IP
+        */
+        if (ipv6_routes.apply().hit) {
+            if (!ipv6_adj.apply().hit) {
+                // Drop if no adjacency found, otherwise packet is default forwarded out of ingress port
+                drop();
+            }
+        }
     }
 }
 

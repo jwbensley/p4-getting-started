@@ -515,7 +515,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/examples/l3_fwd_static/p4app.p4",
-        "line" : 383,
+        "line" : 373,
         "column" : 8,
         "source_fragment" : "EgressDeparser"
       },
@@ -650,8 +650,30 @@
       ]
     },
     {
-      "name" : "IngressProcess.send_nei_sol",
+      "name" : "IngressProcess.drop",
       "id" : 2,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 161,
+            "column" : 8,
+            "source_fragment" : "mark_to_drop(standard_metadata)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "IngressProcess.send_nei_sol",
+      "id" : 3,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -687,7 +709,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 169,
+            "line" : 176,
             "column" : 45,
             "source_fragment" : "0"
           }
@@ -706,7 +728,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 169,
+            "line" : 176,
             "column" : 48,
             "source_fragment" : "511"
           }
@@ -720,14 +742,14 @@
             },
             {
               "type" : "field",
-              "value" : ["ipv6", "dstAddr"]
+              "value" : ["scalars", "metadata.adj_ip"]
             }
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 169,
+            "line" : 176,
             "column" : 53,
-            "source_fragment" : "hdr.ipv6.dstAddr"
+            "source_fragment" : "meta.adj_ip"
           }
         },
         {
@@ -744,16 +766,16 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 169,
+            "line" : 176,
             "column" : 8,
-            "source_fragment" : "digest<digest_t>(0, {T_SEND_NEI_SOL, 0, 511, hdr.ipv6.dstAddr})"
+            "source_fragment" : "digest<digest_t>(0, {T_SEND_NEI_SOL, 0, 511, meta.adj_ip})"
           }
         }
       ]
     },
     {
       "name" : "IngressProcess.recv_nei_sol",
-      "id" : 3,
+      "id" : 4,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -789,7 +811,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 177,
+            "line" : 184,
             "column" : 45,
             "source_fragment" : "hdr.ethernet.srcMac"
           }
@@ -808,7 +830,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 177,
+            "line" : 184,
             "column" : 66,
             "source_fragment" : "standard_metadata.ingress_port"
           }
@@ -827,7 +849,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 177,
+            "line" : 184,
             "column" : 98,
             "source_fragment" : "hdr.ipv6.srcAddr"
           }
@@ -846,7 +868,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 177,
+            "line" : 184,
             "column" : 8,
             "source_fragment" : "digest<digest_t>(0, {T_RECV_NEI_SOL, hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr})"
           }
@@ -874,7 +896,7 @@
     },
     {
       "name" : "IngressProcess.recv_nei_adv",
-      "id" : 4,
+      "id" : 5,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -910,7 +932,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 187,
+            "line" : 194,
             "column" : 45,
             "source_fragment" : "hdr.ethernet.srcMac"
           }
@@ -929,7 +951,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 187,
+            "line" : 194,
             "column" : 66,
             "source_fragment" : "standard_metadata.ingress_port"
           }
@@ -948,7 +970,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 187,
+            "line" : 194,
             "column" : 98,
             "source_fragment" : "hdr.ipv6.srcAddr"
           }
@@ -967,7 +989,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 187,
+            "line" : 194,
             "column" : 8,
             "source_fragment" : "digest<digest_t>(0, {T_RECV_NEI_ADV, hdr.ethernet.srcMac, standard_metadata.ingress_port, hdr.ipv6.srcAddr})"
           }
@@ -995,7 +1017,7 @@
     },
     {
       "name" : "IngressProcess.set_adj",
-      "id" : 5,
+      "id" : 6,
       "runtime_data" : [
         {
           "name" : "nextHop",
@@ -1130,8 +1152,8 @@
       ]
     },
     {
-      "name" : "IngressProcess.set_next_hop",
-      "id" : 6,
+      "name" : "IngressProcess.egress_l2_rewrite",
+      "id" : 7,
       "runtime_data" : [
         {
           "name" : "egress_port",
@@ -1161,7 +1183,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 202,
+            "line" : 211,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = egress_port"
           }
@@ -1180,7 +1202,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 203,
+            "line" : 212,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.dstMac = dstMac"
           }
@@ -1199,7 +1221,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 204,
+            "line" : 213,
             "column" : 8,
             "source_fragment" : "hdr.ethernet.srcMac = srcMac"
           }
@@ -1208,7 +1230,7 @@
     },
     {
       "name" : "IngressProcess.set_egress_port",
-      "id" : 7,
+      "id" : 8,
       "runtime_data" : [
         {
           "name" : "egress_port",
@@ -1230,7 +1252,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 208,
+            "line" : 217,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = egress_port"
           }
@@ -1238,8 +1260,8 @@
       ]
     },
     {
-      "name" : "p4app309",
-      "id" : 8,
+      "name" : "p4app297",
+      "id" : 9,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1256,7 +1278,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 309,
+            "line" : 297,
             "column" : 60,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo request to {}\\\", {hdr.ipv6.dstAddr});"
           }
@@ -1280,7 +1302,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 309,
+            "line" : 297,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo request to {}\\\", {hdr.ipv6.dstAddr});"
           }
@@ -1288,8 +1310,8 @@
       ]
     },
     {
-      "name" : "p4app314",
-      "id" : 9,
+      "name" : "p4app302",
+      "id" : 10,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1306,7 +1328,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 314,
+            "line" : 302,
             "column" : 60,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo reply from {}\\\", {hdr.ipv6.srcAddr});"
           }
@@ -1330,7 +1352,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 314,
+            "line" : 302,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo reply from {}\\\", {hdr.ipv6.srcAddr});"
           }
@@ -1338,8 +1360,8 @@
       ]
     },
     {
-      "name" : "p4app319",
-      "id" : 10,
+      "name" : "p4app307",
+      "id" : 11,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1356,7 +1378,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 319,
+            "line" : 307,
             "column" : 80,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery soliciation for {}\\\", {hdr.icmpv6.target});"
           }
@@ -1380,7 +1402,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 319,
+            "line" : 307,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery soliciation for {}\\\", {hdr.icmpv6.target});"
           }
@@ -1388,8 +1410,8 @@
       ]
     },
     {
-      "name" : "p4app324",
-      "id" : 11,
+      "name" : "p4app312",
+      "id" : 12,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1406,7 +1428,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 324,
+            "line" : 312,
             "column" : 83,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery advertisement from {}\\\", {hdr.icmpv6.target});"
           }
@@ -1430,7 +1452,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 324,
+            "line" : 312,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery advertisement from {}\\\", {hdr.icmpv6.target});"
           }
@@ -1438,8 +1460,8 @@
       ]
     },
     {
-      "name" : "p4app302",
-      "id" : 12,
+      "name" : "p4app290",
+      "id" : 13,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1469,7 +1491,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 302,
+            "line" : 290,
             "column" : 29,
             "source_fragment" : "(bit<32>)standard_metadata.ingress_port"
           }
@@ -1488,7 +1510,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 302,
+            "line" : 290,
             "column" : 8,
             "source_fragment" : "ingressPackets.count((bit<32>)standard_metadata.ingress_port)"
           }
@@ -1496,24 +1518,7 @@
       ]
     },
     {
-      "name" : "p4app330",
-      "id" : 13,
-      "runtime_data" : [],
-      "primitives" : [
-        {
-          "op" : "exit",
-          "parameters" : [],
-          "source_info" : {
-            "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 330,
-            "column" : 12,
-            "source_fragment" : "exit"
-          }
-        }
-      ]
-    },
-    {
-      "name" : "p4app341",
+      "name" : "p4app318",
       "id" : 14,
       "runtime_data" : [],
       "primitives" : [
@@ -1522,7 +1527,7 @@
           "parameters" : [],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 341,
+            "line" : 318,
             "column" : 12,
             "source_fragment" : "exit"
           }
@@ -1530,7 +1535,7 @@
       ]
     },
     {
-      "name" : "p4app360",
+      "name" : "p4app329",
       "id" : 15,
       "runtime_data" : [],
       "primitives" : [
@@ -1539,7 +1544,7 @@
           "parameters" : [],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 360,
+            "line" : 329,
             "column" : 12,
             "source_fragment" : "exit"
           }
@@ -1547,8 +1552,25 @@
       ]
     },
     {
-      "name" : "p4app370",
+      "name" : "p4app338",
       "id" : 16,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "exit",
+          "parameters" : [],
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 338,
+            "column" : 12,
+            "source_fragment" : "exit"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "p4app360",
+      "id" : 17,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1578,7 +1600,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 370,
+            "line" : 360,
             "column" : 28,
             "source_fragment" : "(bit<32>)standard_metadata.egress_spec"
           }
@@ -1597,7 +1619,7 @@
           ],
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 370,
+            "line" : 360,
             "column" : 8,
             "source_fragment" : "egressPackets.count((bit<32>)standard_metadata.egress_spec)"
           }
@@ -1615,14 +1637,14 @@
         "column" : 8,
         "source_fragment" : "IngressProcess"
       },
-      "init_table" : "tbl_p4app302",
+      "init_table" : "tbl_p4app290",
       "tables" : [
         {
-          "name" : "tbl_p4app302",
+          "name" : "tbl_p4app290",
           "id" : 0,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 302,
+            "line" : 290,
             "column" : 8,
             "source_fragment" : "ingressPackets.count((bit<32>)standard_metadata.ingress_port)"
           },
@@ -1633,25 +1655,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [12],
-          "actions" : ["p4app302"],
+          "action_ids" : [13],
+          "actions" : ["p4app290"],
           "base_default_next" : "node_3",
           "next_tables" : {
-            "p4app302" : "node_3"
+            "p4app290" : "node_3"
           },
           "default_entry" : {
-            "action_id" : 12,
+            "action_id" : 13,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_p4app309",
+          "name" : "tbl_p4app297",
           "id" : 1,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 309,
+            "line" : 297,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo request to {}\\\", {hdr.ipv6.dstAddr});"
           },
@@ -1662,25 +1684,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [8],
-          "actions" : ["p4app309"],
-          "base_default_next" : "IngressProcess.local_subnets",
+          "action_ids" : [9],
+          "actions" : ["p4app297"],
+          "base_default_next" : "IngressProcess.from_local_ip",
           "next_tables" : {
-            "p4app309" : "IngressProcess.local_subnets"
+            "p4app297" : "IngressProcess.from_local_ip"
           },
           "default_entry" : {
-            "action_id" : 8,
+            "action_id" : 9,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_p4app314",
+          "name" : "tbl_p4app302",
           "id" : 2,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 314,
+            "line" : 302,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 echo reply from {}\\\", {hdr.ipv6.srcAddr});"
           },
@@ -1691,25 +1713,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [9],
-          "actions" : ["p4app314"],
-          "base_default_next" : "IngressProcess.local_subnets",
+          "action_ids" : [10],
+          "actions" : ["p4app302"],
+          "base_default_next" : "IngressProcess.from_local_ip",
           "next_tables" : {
-            "p4app314" : "IngressProcess.local_subnets"
+            "p4app302" : "IngressProcess.from_local_ip"
           },
           "default_entry" : {
-            "action_id" : 9,
+            "action_id" : 10,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_p4app319",
+          "name" : "tbl_p4app307",
           "id" : 3,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 319,
+            "line" : 307,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery soliciation for {}\\\", {hdr.icmpv6.target});"
           },
@@ -1720,25 +1742,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [10],
-          "actions" : ["p4app319"],
-          "base_default_next" : "IngressProcess.local_subnets",
+          "action_ids" : [11],
+          "actions" : ["p4app307"],
+          "base_default_next" : "IngressProcess.from_local_ip",
           "next_tables" : {
-            "p4app319" : "IngressProcess.local_subnets"
+            "p4app307" : "IngressProcess.from_local_ip"
           },
           "default_entry" : {
-            "action_id" : 10,
+            "action_id" : 11,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_p4app324",
+          "name" : "tbl_p4app312",
           "id" : 4,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 324,
+            "line" : 312,
             "column" : 12,
             "source_fragment" : "            log_msg(\\\"Packet is ICMPv6 neighbour discovery advertisement from {}\\\", {hdr.icmpv6.target});"
           },
@@ -1749,27 +1771,27 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [11],
-          "actions" : ["p4app324"],
-          "base_default_next" : "IngressProcess.local_subnets",
+          "action_ids" : [12],
+          "actions" : ["p4app312"],
+          "base_default_next" : "IngressProcess.from_local_ip",
           "next_tables" : {
-            "p4app324" : "IngressProcess.local_subnets"
+            "p4app312" : "IngressProcess.from_local_ip"
           },
           "default_entry" : {
-            "action_id" : 11,
+            "action_id" : 12,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "IngressProcess.local_subnets",
+          "name" : "IngressProcess.from_local_ip",
           "id" : 5,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 245,
+            "line" : 233,
             "column" : 10,
-            "source_fragment" : "local_subnets"
+            "source_fragment" : "from_local_ip"
           },
           "key" : [
             {
@@ -1785,12 +1807,12 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [7, 0],
+          "action_ids" : [8, 0],
           "actions" : ["IngressProcess.set_egress_port", "NoAction"],
           "base_default_next" : null,
           "next_tables" : {
-            "__HIT__" : "tbl_p4app330",
-            "__MISS__" : "IngressProcess.ipv6_routes"
+            "__HIT__" : "tbl_p4app318",
+            "__MISS__" : "node_13"
           },
           "default_entry" : {
             "action_id" : 0,
@@ -1800,11 +1822,11 @@
           }
         },
         {
-          "name" : "tbl_p4app330",
+          "name" : "tbl_p4app318",
           "id" : 6,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 330,
+            "line" : 318,
             "column" : 12,
             "source_fragment" : "exit"
           },
@@ -1815,14 +1837,130 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [13],
-          "actions" : ["p4app330"],
-          "base_default_next" : "IngressProcess.ipv6_routes",
+          "action_ids" : [14],
+          "actions" : ["p4app318"],
+          "base_default_next" : "node_13",
           "next_tables" : {
-            "p4app330" : "IngressProcess.ipv6_routes"
+            "p4app318" : "node_13"
           },
           "default_entry" : {
-            "action_id" : 13,
+            "action_id" : 14,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_recv_nei_sol",
+          "id" : 7,
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 328,
+            "column" : 12,
+            "source_fragment" : "recv_nei_sol()"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [4],
+          "actions" : ["IngressProcess.recv_nei_sol"],
+          "base_default_next" : "tbl_p4app329",
+          "next_tables" : {
+            "IngressProcess.recv_nei_sol" : "tbl_p4app329"
+          },
+          "default_entry" : {
+            "action_id" : 4,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_p4app329",
+          "id" : 8,
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 329,
+            "column" : 12,
+            "source_fragment" : "exit"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [15],
+          "actions" : ["p4app329"],
+          "base_default_next" : "IngressProcess.ipv6_routes",
+          "next_tables" : {
+            "p4app329" : "IngressProcess.ipv6_routes"
+          },
+          "default_entry" : {
+            "action_id" : 15,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_recv_nei_adv",
+          "id" : 9,
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 337,
+            "column" : 12,
+            "source_fragment" : "recv_nei_adv()"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [5],
+          "actions" : ["IngressProcess.recv_nei_adv"],
+          "base_default_next" : "tbl_p4app338",
+          "next_tables" : {
+            "IngressProcess.recv_nei_adv" : "tbl_p4app338"
+          },
+          "default_entry" : {
+            "action_id" : 5,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_p4app338",
+          "id" : 10,
+          "source_info" : {
+            "filename" : "/examples/l3_fwd_static/p4app.p4",
+            "line" : 338,
+            "column" : 12,
+            "source_fragment" : "exit"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [16],
+          "actions" : ["p4app338"],
+          "base_default_next" : "IngressProcess.ipv6_routes",
+          "next_tables" : {
+            "p4app338" : "IngressProcess.ipv6_routes"
+          },
+          "default_entry" : {
+            "action_id" : 16,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1830,10 +1968,10 @@
         },
         {
           "name" : "IngressProcess.ipv6_routes",
-          "id" : 7,
+          "id" : 11,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 268,
+            "line" : 256,
             "column" : 10,
             "source_fragment" : "ipv6_routes"
           },
@@ -1851,12 +1989,12 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [5, 1],
+          "action_ids" : [6, 1],
           "actions" : ["IngressProcess.set_adj", "IngressProcess.drop"],
           "base_default_next" : null,
           "next_tables" : {
-            "__HIT__" : "IngressProcess.ipv6_adj",
-            "__MISS__" : "node_16"
+            "__MISS__" : null,
+            "__HIT__" : "IngressProcess.ipv6_adj"
           },
           "default_entry" : {
             "action_id" : 1,
@@ -1867,10 +2005,10 @@
         },
         {
           "name" : "IngressProcess.ipv6_adj",
-          "id" : 8,
+          "id" : 12,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 289,
+            "line" : 277,
             "column" : 10,
             "source_fragment" : "ipv6_adj"
           },
@@ -1888,28 +2026,28 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [6, 2],
-          "actions" : ["IngressProcess.set_next_hop", "IngressProcess.send_nei_sol"],
-          "base_default_next" : "tbl_p4app341",
+          "action_ids" : [7, 3],
+          "actions" : ["IngressProcess.egress_l2_rewrite", "IngressProcess.send_nei_sol"],
+          "base_default_next" : null,
           "next_tables" : {
-            "IngressProcess.set_next_hop" : "tbl_p4app341",
-            "IngressProcess.send_nei_sol" : "tbl_p4app341"
+            "__HIT__" : null,
+            "__MISS__" : "tbl_drop"
           },
           "default_entry" : {
-            "action_id" : 2,
+            "action_id" : 3,
             "action_const" : false,
             "action_data" : [],
             "action_entry_const" : false
           }
         },
         {
-          "name" : "tbl_p4app341",
-          "id" : 9,
+          "name" : "tbl_drop",
+          "id" : 13,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 341,
-            "column" : 12,
-            "source_fragment" : "exit"
+            "line" : 350,
+            "column" : 16,
+            "source_fragment" : "drop()"
           },
           "key" : [],
           "match_type" : "exact",
@@ -1918,101 +2056,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [14],
-          "actions" : ["p4app341"],
-          "base_default_next" : "node_16",
-          "next_tables" : {
-            "p4app341" : "node_16"
-          },
-          "default_entry" : {
-            "action_id" : 14,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_recv_nei_sol",
-          "id" : 10,
-          "source_info" : {
-            "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 351,
-            "column" : 12,
-            "source_fragment" : "recv_nei_sol()"
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [3],
-          "actions" : ["IngressProcess.recv_nei_sol"],
+          "action_ids" : [2],
+          "actions" : ["IngressProcess.drop"],
           "base_default_next" : null,
           "next_tables" : {
-            "IngressProcess.recv_nei_sol" : null
+            "IngressProcess.drop" : null
           },
           "default_entry" : {
-            "action_id" : 3,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_recv_nei_adv",
-          "id" : 11,
-          "source_info" : {
-            "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 359,
-            "column" : 12,
-            "source_fragment" : "recv_nei_adv()"
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [4],
-          "actions" : ["IngressProcess.recv_nei_adv"],
-          "base_default_next" : "tbl_p4app360",
-          "next_tables" : {
-            "IngressProcess.recv_nei_adv" : "tbl_p4app360"
-          },
-          "default_entry" : {
-            "action_id" : 4,
-            "action_const" : true,
-            "action_data" : [],
-            "action_entry_const" : true
-          }
-        },
-        {
-          "name" : "tbl_p4app360",
-          "id" : 12,
-          "source_info" : {
-            "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 360,
-            "column" : 12,
-            "source_fragment" : "exit"
-          },
-          "key" : [],
-          "match_type" : "exact",
-          "type" : "simple",
-          "max_size" : 1024,
-          "with_counters" : false,
-          "support_timeout" : false,
-          "direct_meters" : null,
-          "action_ids" : [15],
-          "actions" : ["p4app360"],
-          "base_default_next" : null,
-          "next_tables" : {
-            "p4app360" : null
-          },
-          "default_entry" : {
-            "action_id" : 15,
+            "action_id" : 2,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -2026,7 +2077,7 @@
           "id" : 0,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 306,
+            "line" : 294,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_ECHO_REQ && ..."
           },
@@ -2064,7 +2115,7 @@
               }
             }
           },
-          "true_next" : "tbl_p4app309",
+          "true_next" : "tbl_p4app297",
           "false_next" : "node_5"
         },
         {
@@ -2072,7 +2123,7 @@
           "id" : 1,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 311,
+            "line" : 299,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_ECHO_REP && ..."
           },
@@ -2110,7 +2161,7 @@
               }
             }
           },
-          "true_next" : "tbl_p4app314",
+          "true_next" : "tbl_p4app302",
           "false_next" : "node_7"
         },
         {
@@ -2118,7 +2169,7 @@
           "id" : 2,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 316,
+            "line" : 304,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_NEI_SOL && ..."
           },
@@ -2156,7 +2207,7 @@
               }
             }
           },
-          "true_next" : "tbl_p4app319",
+          "true_next" : "tbl_p4app307",
           "false_next" : "node_9"
         },
         {
@@ -2164,7 +2215,7 @@
           "id" : 3,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 321,
+            "line" : 309,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV && ..."
           },
@@ -2202,15 +2253,15 @@
               }
             }
           },
-          "true_next" : "tbl_p4app324",
-          "false_next" : "IngressProcess.local_subnets"
+          "true_next" : "tbl_p4app312",
+          "false_next" : "IngressProcess.from_local_ip"
         },
         {
-          "name" : "node_16",
+          "name" : "node_13",
           "id" : 4,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 345,
+            "line" : 322,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_NEI_SOL && ..."
           },
@@ -2249,14 +2300,14 @@
             }
           },
           "true_next" : "tbl_recv_nei_sol",
-          "false_next" : "node_18"
+          "false_next" : "node_16"
         },
         {
-          "name" : "node_18",
+          "name" : "node_16",
           "id" : 5,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 353,
+            "line" : 331,
             "column" : 12,
             "source_fragment" : "hdr.icmpv6.type == ICMPV6_TYPE_NEI_ADV && ..."
           },
@@ -2294,8 +2345,8 @@
               }
             }
           },
-          "false_next" : null,
-          "true_next" : "tbl_recv_nei_adv"
+          "true_next" : "tbl_recv_nei_adv",
+          "false_next" : "IngressProcess.ipv6_routes"
         }
       ]
     },
@@ -2304,18 +2355,18 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/examples/l3_fwd_static/p4app.p4",
-        "line" : 366,
+        "line" : 356,
         "column" : 8,
         "source_fragment" : "EgressProcess"
       },
-      "init_table" : "tbl_p4app370",
+      "init_table" : "tbl_p4app360",
       "tables" : [
         {
-          "name" : "tbl_p4app370",
-          "id" : 13,
+          "name" : "tbl_p4app360",
+          "id" : 14,
           "source_info" : {
             "filename" : "/examples/l3_fwd_static/p4app.p4",
-            "line" : 370,
+            "line" : 360,
             "column" : 8,
             "source_fragment" : "egressPackets.count((bit<32>)standard_metadata.egress_spec)"
           },
@@ -2326,14 +2377,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [16],
-          "actions" : ["p4app370"],
+          "action_ids" : [17],
+          "actions" : ["p4app360"],
           "base_default_next" : null,
           "next_tables" : {
-            "p4app370" : null
+            "p4app360" : null
           },
           "default_entry" : {
-            "action_id" : 16,
+            "action_id" : 17,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
