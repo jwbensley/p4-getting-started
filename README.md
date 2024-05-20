@@ -1,4 +1,4 @@
-# P4 Getting Started
+# P4 Examples and Getting Started
 
 This repo contains various materials which have been compiled in a single location. This collection of resources provides everything you need in one place, in order to work through some P4 "hello world" exercises.
 
